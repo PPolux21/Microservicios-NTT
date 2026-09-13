@@ -1,4 +1,4 @@
-= Taco Cloud v0.0.11 (MongoDB)
+# Taco Cloud v0.0.11 (MongoDB)
 
 This folder contains the source code for the Taco Cloud sample from Spring in Action, 5th edition, as presented in Chapters 11 and 12.
 
@@ -6,7 +6,7 @@ There may be portions of the application that are not fully functional (yet), bu
 
 It's also important to note that example code tends to evolve throughout the course of a chapter. Moreover, there are often many different variants of a given piece of code presented. The sample code given here may only represent one such variant or evolution.
 
-== Running Taco Cloud
+## Running Taco Cloud
 
 Taco Cloud has RabbitMQ as an external requirement. Before running the application, be sure to fire up a RabbitMQ broker on localhost, listening on the default port. For more details on running RabbitMQ, see https://www.rabbitmq.com/#getstarted. For reference, I tested this with RabbitMQ 3.7.2, although it should work with most recent RabbitMQ releases.
 
@@ -14,21 +14,19 @@ As configured, Taco Cloud uses an embedded Mongo database (Flapdoodle) so there'
 
 Starting with Chapter 6, Taco Cloud is broken into a multi-module Maven project. To build the full project, use `mvnw` (the Maven wrapper) at the command line like this:
 
-[source,sh]
-----
-% ./mvnw clean package
-----
+``` shell
+./mvnw clean package
+```
 
 Once the project is built, you can run the executable JAR file from the `tacos` project:
 
-[source,sh]
-----
-% java -jar tacos/target/taco-cloud-0.0.11-SNAPSHOT.jar
-----
+``` shell
+java -jar tacos/target/taco-cloud-0.0.11-SNAPSHOT.jar
+``` 
 
 Once the application has started, open your web browser and navigate to http://localhost:8080 to see the Taco Cloud home page.
 
-== Kicking the tires
+## Kicking the tires
 
 As mentioned above, not all of the Taco Cloud application is fully functional (yet). But the components that pertain to the topic of Chapters 6-9, as well as relevant code from Chapters 11 and 12 pertaining to reactive programming with Spring should be in place.
 
@@ -36,7 +34,7 @@ From the home page, you should be able to view some recently created tacos by cl
 
 Click the "DESIGN A TACO" link to create a taco and ultimately create an order. You can view the contents of your shopping cart by clicking on the cart/price at the top right.
 
-=== What's missing/broken...
+### What's missing/broken...
 
 The three most prominent pieces that still need to be fixed are:
 
@@ -45,7 +43,7 @@ The three most prominent pieces that still need to be fixed are:
 
 These will be certainly be sorted out eventually, but priority was placed on writing code that demonstrated the subject of Chapters 11 and 12.
 
-== Taco Cloud modules
+## Taco Cloud modules
 
 The multi-module Maven project is made up of the following modules:
 
@@ -69,9 +67,9 @@ The `tacocloud-restclient` module, while part of the Maven multi-module build, i
 
 Assuming that the Taco Cloud application has been built and is running, you can run the client application at the command line like this:
 
-[source,sh]
-----
-% java -jar tacocloud-restclient/target/tacocloud-restclient-0.0.11-SNAPSHOT.jar
-----
+
+``` shell
+java -jar tacocloud-restclient/target/tacocloud-restclient-0.0.11-SNAPSHOT.jar
+``` 
 
 Review the source code in the `tacocloud-restclient` folder as you run the client to understand what is being emitted to the console.

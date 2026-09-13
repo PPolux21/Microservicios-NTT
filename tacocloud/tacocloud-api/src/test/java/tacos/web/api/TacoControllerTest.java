@@ -9,13 +9,16 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 import tacos.Ingredient;
 import tacos.Ingredient.Type;
 import tacos.Taco;
+import tacos.data.IngredientRepository;
 import tacos.data.TacoRepository;
 
 public class TacoControllerTest {
@@ -89,5 +92,82 @@ public class TacoControllerTest {
         new Ingredient("INGB", "Ingredient B", Type.PROTEIN));
     taco.setIngredients(ingredients);
     return taco;
+  }
+
+  // Pruebas con WebTestClient para el método updateIngredient
+  // 400 Bad Request test
+  @Test 
+  public void shouldReturnBadRequestWhenIdsMismatch() {
+    IngredientRepository ingredientRepo = Mockito.mock(IngredientRepository.class);
+    Ingredient testIngredient = new Ingredient("1", "Ingredient 1", Type.WRAP);
+
+    WebTestClient testClient = WebTestClient.bindToController(
+        new IngredientController(ingredientRepo)).build();
+
+    testClient.put()
+        .uri("/api/ingredients/2")
+        .contentType(MediaType.APPLICATION_JSON)
+        .bodyValue(testIngredient)
+      .exchange()
+      .expectStatus().isBadRequest();
+  }
+
+  // 404 Not Found test
+  @Test 
+  public void shouldReturnNotFoundWhenIngredientDoesNotExist() {
+    IngredientRepository ingredientRepo = Mockito.mock(IngredientRepository.class);
+    Ingredient testIngredient = new Ingredient("1", "Ingredient 1", Type.WRAP);
+
+    when(ingredientRepo.findById(any(String.class))).thenReturn(Mono.empty());
+
+    WebTestClient testClient = WebTestClient.bindToController(
+        new IngredientController(ingredientRepo)).build();
+
+    testClient.put()
+        .uri("/api/ingredients/1")
+        .contentType(MediaType.APPLICATION_JSON)
+        .bodyValue(testIngredient)
+      .exchange()
+      .expectStatus().isNotFound();
+  }
+
+  // 200 OK test
+  @Test 
+  public void shouldUpdateIngredientAndReturnOk() {
+    IngredientRepository ingredientRepo = Mockito.mock(IngredientRepository.class);
+    Ingredient testIngredient = new Ingredient("1", "Ingredient 1", Type.WRAP);
+
+    when(ingredientRepo.findById(any(String.class))).thenReturn(Mono.just(testIngredient));
+    when(ingredientRepo.save(any(Ingredient.class))).thenReturn(Mono.just(testIngredient));
+
+    WebTestClient testClient = WebTestClient.bindToController(
+        new IngredientController(ingredientRepo)).build();
+
+    testClient.put()
+        .uri("/api/ingredients/1")
+        .contentType(MediaType.APPLICATION_JSON)
+        .bodyValue(testIngredient)
+      .exchange()
+      .expectStatus().isOk();
+  }
+
+  // StepVerifier test 
+  @Test 
+  public void shouldUpdateIngredientAndVerify(){
+    IngredientRepository ingredientRepo = Mockito.mock(IngredientRepository.class);
+    Ingredient testIngredient = new Ingredient("1", "Ingredient 1", Type.WRAP);
+
+    when(ingredientRepo.findById(any(String.class))).thenReturn(Mono.just(testIngredient));
+    when(ingredientRepo.save(any(Ingredient.class))).thenReturn(Mono.just(testIngredient));
+
+    IngredientController controller = new IngredientController(ingredientRepo);
+
+    Mono<ResponseEntity<Ingredient>> resultado = controller.updateIngredient("1", testIngredient);
+
+    StepVerifier.create(resultado)
+        .expectNextMatches(response -> response.getStatusCode().is2xxSuccessful())
+        .verifyComplete();
+
+    Mockito.verify(ingredientRepo).save(testIngredient);
   }
 }

@@ -93,4 +93,42 @@ public class IngredientControllerTest {
 
     Mockito.verify(ingredientRepo).save(testIngredient);
   }
+
+  // TC-02: Pruebas con WebTestClient para el método deleteIngredient
+  // 404 Not Found test
+  @Test
+  public void shouldReturnNotFoundWhenDeletingNonExistentIngredient() {
+    IngredientRepository ingredientRepo = Mockito.mock(IngredientRepository.class);
+
+    when(ingredientRepo.findById(any(String.class))).thenReturn(Mono.empty());
+
+    WebTestClient testClient = WebTestClient.bindToController(
+        new IngredientController(ingredientRepo)).build();
+
+    testClient.delete()
+        .uri("/api/ingredients/1234")
+      .exchange()
+      .expectStatus().isNotFound();
+  }
+
+  // 204 No Content test
+  @Test
+  public void shouldReturnNoContentWhenDeletingExistingIngredient() {
+    IngredientRepository ingredientRepo = Mockito.mock(IngredientRepository.class);
+    Ingredient testIngredient = new Ingredient("FLTO", "Flour Tortilla", Type.WRAP);
+
+    when(ingredientRepo.findById(any(String.class))).thenReturn(Mono.just(testIngredient));
+    when(ingredientRepo.deleteById(any(String.class))).thenReturn(Mono.empty());
+
+    WebTestClient testClient = WebTestClient.bindToController(
+        new IngredientController(ingredientRepo)).build();
+
+    testClient.delete()
+        .uri("/api/ingredients/FLTO")
+      .exchange()
+      .expectStatus().isNoContent();
+  }
+
+  // Mongo DB test (WIP)
+  
 }

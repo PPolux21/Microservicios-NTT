@@ -1,11 +1,12 @@
 package tacos.web.api;
 
-import java.net.URI;
+import javax.validation.Valid;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -58,12 +60,13 @@ public class IngredientController {
   }
 
   @PostMapping
-  public Mono<ResponseEntity<Ingredient>> postIngredient(@RequestBody Mono<Ingredient> ingredient) {
+  public Mono<ResponseEntity<Ingredient>> postIngredient(@Valid @RequestBody Mono<Ingredient> ingredient, ServerHttpRequest request) {
     return ingredient
         .flatMap(repo::save)
         .map(i -> {
           HttpHeaders headers = new HttpHeaders();
-          headers.setLocation(URI.create("http://localhost:8080/ingredients/" + i.getId()));
+          headers.setLocation(UriComponentsBuilder.fromUri(request.getURI())
+            .pathSegment(i.getId()).build().toUri());
           return new ResponseEntity<Ingredient>(i, headers, HttpStatus.CREATED);
         });
   }

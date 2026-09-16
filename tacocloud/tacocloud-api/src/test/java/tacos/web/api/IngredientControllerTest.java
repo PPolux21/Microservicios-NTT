@@ -131,4 +131,30 @@ public class IngredientControllerTest {
 
   // Mongo DB test (WIP)
   
+
+  // TC-03: Pruebas para el método postIngredient
+  // Prueba con WebTestClient que inspeccione Location
+  @Test
+  public void shouldReturnCreatedAndLocationInspection(){
+    IngredientRepository ingredientRepo = Mockito.mock(IngredientRepository.class);
+    Ingredient ingredientToSave = new Ingredient("NUIN", "Nuevo Ingrediente", Type.WRAP);
+
+    when(ingredientRepo.save(any(Ingredient.class))).thenReturn(Mono.just(ingredientToSave));
+
+    WebTestClient testClient = WebTestClient.bindToController(
+        new IngredientController(ingredientRepo)).build();
+
+    testClient.post()
+        .uri("/api/ingredients")
+        .contentType(MediaType.APPLICATION_JSON)
+        .bodyValue(ingredientToSave)
+      .exchange()
+      .expectStatus().isCreated()
+      .expectHeader().valueMatches("Location", ".*?/api/ingredients/NUIN$");
+  }
+
+  // Prueba que siga Lcation y obtenga 200
+
+  // Prueba de validación 400
+
 }

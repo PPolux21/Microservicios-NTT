@@ -109,6 +109,9 @@ public class IngredientControllerTest {
         .uri("/api/ingredients/1234")
       .exchange()
       .expectStatus().isNotFound();
+
+    Mockito.verify(ingredientRepo, Mockito.never())
+      .deleteById(any(String.class));
   }
 
   // 204 No Content test
@@ -126,7 +129,11 @@ public class IngredientControllerTest {
     testClient.delete()
         .uri("/api/ingredients/FLTO")
       .exchange()
-      .expectStatus().isNoContent();
+      .expectStatus().isNoContent()
+      .expectBody().isEmpty();
+
+      Mockito.verify(ingredientRepo, Mockito.times(1))
+        .deleteById("FLTO");
   }
 
   // Mongo DB test (WIP)

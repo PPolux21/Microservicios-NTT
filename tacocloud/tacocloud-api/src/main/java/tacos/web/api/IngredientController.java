@@ -1,5 +1,8 @@
 package tacos.web.api;
 
+import java.net.URI;
+
+import javax.servlet.http.HttpServletRequest;
 import javax.validation.Valid;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +19,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import reactor.core.publisher.Flux;
@@ -60,15 +64,19 @@ public class IngredientController {
   }
 
   @PostMapping
-  public Mono<ResponseEntity<Ingredient>> postIngredient(@Valid @RequestBody Mono<Ingredient> ingredient, ServerHttpRequest request) {
-    return ingredient
-        .flatMap(repo::save)
-        .map(i -> {
-          HttpHeaders headers = new HttpHeaders();
-          headers.setLocation(UriComponentsBuilder.fromUri(request.getURI())
-            .pathSegment(i.getId()).build().toUri());
-          return new ResponseEntity<Ingredient>(i, headers, HttpStatus.CREATED);
-        });
+  public Mono<ResponseEntity<Ingredient>> postIngredient(@Valid @RequestBody Ingredient ingredient, HttpServletRequest request) {
+
+    return repo.save(ingredient)
+      .map(savedIngredient -> {
+        URI location = ServletUriComponentsBuilder
+          .fromRequestUri(request)
+          .pathSegment(savedIngredient.getId())
+          .build()
+          .toUri();
+        return ResponseEntity
+          .created(location)
+          .body(savedIngredient);
+      });
   }
 
   @DeleteMapping("/{id}")

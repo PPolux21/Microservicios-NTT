@@ -8,7 +8,7 @@ import com.fasterxml.jackson.annotation.JsonAnySetter;
 import lombok.Data;
 
 @Data
-public class OrderPatchRequest {
+public class OrderDeliveryRequest {
 
   private String deliveryName;
   private String deliveryStreet;

@@ -1,7 +1,6 @@
 package tacos.web.api;
 
 import org.springframework.security.core.Authentication;
-import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -70,13 +69,38 @@ public class OrderApiController {
   }
 
   @PutMapping(path="/{orderId}", consumes="application/json")
-  public Mono<TacoOrder> putOrder(@RequestBody Mono<TacoOrder> order) {
-    return order.flatMap(repo::save);
+  public Mono<ResponseEntity<TacoOrder>> putOrder(@PathVariable("orderId") String orderId,
+    @RequestBody OrderDeliveryRequest request, Authentication authentication) {
+
+    if (request.hasUnsupportedFields()) {
+      return Mono.just(ResponseEntity.badRequest().build());
+    }
+
+    return repo.findById(orderId)
+      .flatMap(existingOrder -> {
+
+        if (!canModify(existingOrder, authentication)) {
+          return Mono.just(ResponseEntity.status(HttpStatus.FORBIDDEN).<TacoOrder>build());
+        }
+
+        existingOrder.setDeliveryName(request.getDeliveryName());
+
+        existingOrder.setDeliveryStreet(request.getDeliveryStreet());
+
+        existingOrder.setDeliveryCity(request.getDeliveryCity());
+
+        existingOrder.setDeliveryState(request.getDeliveryState());
+
+        existingOrder.setDeliveryZip(request.getDeliveryZip());
+
+        return repo.save(existingOrder).map(ResponseEntity::ok);
+      })
+      .defaultIfEmpty(ResponseEntity.notFound().build());
   }
 
   @PatchMapping(path = "/{orderId}",consumes = "application/json")
   public Mono<ResponseEntity<TacoOrder>> patchOrder(@PathVariable("orderId") String orderId,
-      @RequestBody OrderPatchRequest patch,Authentication authentication) {
+      @RequestBody OrderDeliveryRequest patch,Authentication authentication) {
 
     if (patch.hasUnsupportedFields()) {
       return Mono.just(ResponseEntity.badRequest().build());
@@ -86,8 +110,7 @@ public class OrderApiController {
       .flatMap(order -> {
 
         if (!canModify(order, authentication)) {
-          return Mono.just(
-            ResponseEntity.status(HttpStatus.FORBIDDEN).<TacoOrder>build());
+          return Mono.just(ResponseEntity.status(HttpStatus.FORBIDDEN).<TacoOrder>build());
         }
 
         if (patch.getDeliveryName() != null) {
@@ -117,12 +140,26 @@ public class OrderApiController {
   }
 
   @DeleteMapping("/{orderId}")
-  @ResponseStatus(HttpStatus.NO_CONTENT)
-  public void deleteOrder(@PathVariable("orderId") String orderId) {
-    try {
-      repo.deleteById(orderId);
-    } catch (EmptyResultDataAccessException e) {}
-  }
+  public Mono<ResponseEntity<Void>> deleteOrder(@PathVariable("orderId") String orderId,
+    Authentication authentication) {
+
+  return repo.findById(orderId)
+      .flatMap(order -> {
+
+        if (!canModify(order, authentication)) {
+          return Mono.just(ResponseEntity.status(HttpStatus.FORBIDDEN).<Void>build());
+        }
+
+        if (order.getStatus() == TacoOrder.Status.PREPARING) {
+
+          return Mono.just(ResponseEntity.status(HttpStatus.CONFLICT).<Void>build());
+        }
+
+        return repo.deleteById(orderId)
+          .thenReturn(ResponseEntity.noContent().<Void>build());
+      })
+      .defaultIfEmpty(ResponseEntity.notFound().<Void>build());
+}
 
   private boolean canModify(TacoOrder order,Authentication authentication) {
 

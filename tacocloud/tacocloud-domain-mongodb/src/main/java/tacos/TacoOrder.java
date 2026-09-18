@@ -44,4 +44,10 @@ public class TacoOrder implements Serializable {
     this.tacos.add(design);
 }
 
+  public enum Status {
+    CREATED,
+    PREPARING
+  }
+  
+  private Status status = Status.CREATED;
 }

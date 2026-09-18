@@ -56,7 +56,7 @@ public class OrderApiControllerTest {
 
     existingOrder.setUser(owner);
 
-    OrderPatchRequest patch = new OrderPatchRequest();
+    OrderDeliveryRequest patch = new OrderDeliveryRequest();
 
     patch.setDeliveryZip("20230");
 
@@ -97,7 +97,7 @@ public class OrderApiControllerTest {
   // Prueba de campo prohibido.
   @Test
   public void shouldReturnBadRequestForUnsupportedField() {
-    OrderPatchRequest patch = new OrderPatchRequest();
+    OrderDeliveryRequest patch = new OrderDeliveryRequest();
 
     patch.setDeliveryCity("Aguascalientes");
 
@@ -140,7 +140,7 @@ public class OrderApiControllerTest {
     foreignOrder.setUser(otherUser);
     foreignOrder.setDeliveryCity("Mexico City");
 
-    OrderPatchRequest patch = new OrderPatchRequest();
+    OrderDeliveryRequest patch = new OrderDeliveryRequest();
 
     patch.setDeliveryCity("Aguascalientes");
 
@@ -181,5 +181,138 @@ public class OrderApiControllerTest {
       repo,
       never())
       .save(any(TacoOrder.class));
+  }
+
+  // TC-05 PUT y DELETE
+  // PUT con IDs contradictorios
+  @Test
+  public void shouldRejectPutWithBodyId() {
+
+    OrderDeliveryRequest request = new OrderDeliveryRequest();
+
+    request.setDeliveryName("Jose");
+
+    request.addUnsupportedField("id","ORDER-OTHER");
+
+    Authentication authentication = org.mockito.Mockito.mock(Authentication.class);
+
+    StepVerifier.create(
+        controller.putOrder(
+            "ORDER-1",
+            request,
+            authentication))
+        .assertNext(response ->
+            assertEquals(
+                HttpStatus.BAD_REQUEST,
+                response.getStatusCode()))
+        .verifyComplete();
+
+    verify(repo, never()).findById(anyString());
+
+    verify(repo, never()).save(any(TacoOrder.class));
+  }
+
+  // DELETE existente/ausente/ajeno
+  @Test
+  public void shouldHandleDeleteExistingMissingAndForeignOrder() {
+
+    User owner = org.mockito.Mockito.mock(User.class);
+
+    when(owner.getUsername()).thenReturn("jose");
+
+    User otherUser = org.mockito.Mockito.mock(User.class);
+
+    when(otherUser.getUsername()).thenReturn("otherUser");
+
+    TacoOrder existingOrder =new TacoOrder();
+
+    existingOrder.setUser(owner);
+    existingOrder.setStatus(TacoOrder.Status.CREATED);
+
+    TacoOrder foreignOrder = new TacoOrder();
+
+    foreignOrder.setUser(otherUser);
+    foreignOrder.setStatus(TacoOrder.Status.CREATED);
+
+    Authentication authentication = org.mockito.Mockito.mock(Authentication.class);
+
+    when(authentication.getName()).thenReturn("jose");
+
+    when(authentication.getAuthorities()).thenReturn(Collections.emptyList());
+
+    // La orden existe y pertenece al usuario.
+    when(repo.findById("ORDER-1")).thenReturn(Mono.just(existingOrder));
+
+    when(repo.deleteById("ORDER-1")).thenReturn(Mono.empty());
+
+    StepVerifier.create(
+        controller.deleteOrder(
+            "ORDER-1",
+            authentication))
+        .assertNext(response ->
+            assertEquals(HttpStatus.NO_CONTENT,response.getStatusCode()))
+        .verifyComplete();
+
+    //La orden no existe.
+    when(repo.findById("ORDER-MISSING")).thenReturn(Mono.empty());
+
+    StepVerifier.create(
+      controller.deleteOrder(
+        "ORDER-MISSING",
+        authentication))
+      .assertNext(response ->
+        assertEquals(HttpStatus.NOT_FOUND,response.getStatusCode()))
+      .verifyComplete();
+
+
+    // La orden existe pero pertenece a otro usuario.
+ 
+    when(repo.findById("ORDER-FOREIGN")).thenReturn(Mono.just(foreignOrder));
+
+    StepVerifier.create(
+        controller.deleteOrder(
+            "ORDER-FOREIGN",
+            authentication))
+        .assertNext(response ->
+            assertEquals(HttpStatus.FORBIDDEN,response.getStatusCode()))
+        .verifyComplete();
+
+    verify(repo).deleteById("ORDER-1");
+
+    verify(repo, never()).deleteById("ORDER-MISSING");
+
+    verify(repo, never()).deleteById("ORDER-FOREIGN");
+  }
+  
+  @Test
+  public void shouldNotPhysicallyDeletePreparingOrder() {
+    User owner =org.mockito.Mockito.mock(User.class);
+
+    when(owner.getUsername()).thenReturn("jose");
+
+    TacoOrder order = new TacoOrder();
+
+    order.setUser(owner);order.setStatus(TacoOrder.Status.PREPARING);
+
+    Authentication authentication = org.mockito.Mockito.mock(Authentication.class);
+
+    when(authentication.getName()).thenReturn("jose");
+
+    when(authentication.getAuthorities())
+        .thenReturn(Collections.emptyList());
+
+    when(repo.findById("ORDER-PREPARING")).thenReturn(Mono.just(order));
+
+    StepVerifier.create(
+        controller.deleteOrder(
+            "ORDER-PREPARING",
+            authentication))
+        .assertNext(response ->
+            assertEquals(
+                HttpStatus.CONFLICT,
+                response.getStatusCode()))
+        .verifyComplete();
+
+    verify(repo, never()).deleteById(anyString());
   }
 }

@@ -1,7 +1,9 @@
 package tacos.web.api;
 
+import org.springframework.security.core.Authentication;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -72,39 +74,46 @@ public class OrderApiController {
     return order.flatMap(repo::save);
   }
 
-  @PatchMapping(path="/{orderId}", consumes="application/json")
-  public Mono<TacoOrder> patchOrder(@PathVariable("orderId") String orderId,
-                          @RequestBody TacoOrder patch) {
+  @PatchMapping(path = "/{orderId}",consumes = "application/json")
+  public Mono<ResponseEntity<TacoOrder>> patchOrder(@PathVariable("orderId") String orderId,
+      @RequestBody OrderPatchRequest patch,Authentication authentication) {
+
+    if (patch.hasUnsupportedFields()) {
+      return Mono.just(ResponseEntity.badRequest().build());
+    }
 
     return repo.findById(orderId)
-        .map(order -> {
-          if (patch.getDeliveryName() != null) {
-            order.setDeliveryName(patch.getDeliveryName());
-          }
-          if (patch.getDeliveryStreet() != null) {
-            order.setDeliveryStreet(patch.getDeliveryStreet());
-          }
-          if (patch.getDeliveryCity() != null) {
-            order.setDeliveryCity(patch.getDeliveryCity());
-          }
-          if (patch.getDeliveryState() != null) {
-            order.setDeliveryState(patch.getDeliveryState());
-          }
-          if (patch.getDeliveryZip() != null) {
-            order.setDeliveryZip(patch.getDeliveryState());
-          }
-          if (patch.getCcNumber() != null) {
-            order.setCcNumber(patch.getCcNumber());
-          }
-          if (patch.getCcExpiration() != null) {
-            order.setCcExpiration(patch.getCcExpiration());
-          }
-          if (patch.getCcCVV() != null) {
-            order.setCcCVV(patch.getCcCVV());
-          }
-          return order;
-        })
-        .flatMap(repo::save);
+      .flatMap(order -> {
+
+        if (!canModify(order, authentication)) {
+          return Mono.just(
+            ResponseEntity.status(HttpStatus.FORBIDDEN).<TacoOrder>build());
+        }
+
+        if (patch.getDeliveryName() != null) {
+          order.setDeliveryName(patch.getDeliveryName());
+        }
+
+        if (patch.getDeliveryStreet() != null) {
+          order.setDeliveryStreet(patch.getDeliveryStreet());
+        }
+
+        if (patch.getDeliveryCity() != null) {
+          order.setDeliveryCity(patch.getDeliveryCity());
+        }
+
+        if (patch.getDeliveryState() != null) {
+          order.setDeliveryState(patch.getDeliveryState());
+        }
+
+        if (patch.getDeliveryZip() != null) {
+          order.setDeliveryZip(patch.getDeliveryZip());
+        }
+
+        return repo.save(order)
+            .map(ResponseEntity::ok);
+      })
+      .defaultIfEmpty(ResponseEntity.notFound().build());
   }
 
   @DeleteMapping("/{orderId}")
@@ -115,4 +124,26 @@ public class OrderApiController {
     } catch (EmptyResultDataAccessException e) {}
   }
 
+  private boolean canModify(TacoOrder order,Authentication authentication) {
+
+    if (authentication == null) {
+      return false;
+    }
+
+    boolean isAdmin = authentication.getAuthorities()
+                                    .stream()
+                                    .anyMatch(authority ->
+                                        "ROLE_ADMIN".equals(
+                                            authority.getAuthority()));
+
+    if (isAdmin) {
+      return true;
+    }
+
+    return order.getUser() != null
+      && order.getUser().getUsername() != null
+      && order.getUser()
+        .getUsername()
+        .equals(authentication.getName());
+  }
 }

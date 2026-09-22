@@ -34,10 +34,11 @@ public class OrderApiControllerTest {
   private OrderMessagingService orderMessages;
 
   @Mock
-  private EmailOrderService emailOrderService;
+  private OrderService orderService;
 
   @InjectMocks
-  private OrderApiController controller;
+  private OrderApiController controller = 
+                        new OrderApiController(repo,orderMessages,orderService);
 
 
   /*    TC-04

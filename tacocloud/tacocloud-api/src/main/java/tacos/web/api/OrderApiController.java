@@ -29,14 +29,14 @@ public class OrderApiController {
 
   private OrderRepository repo;
   private OrderMessagingService orderMessages;
-  private EmailOrderService emailOrderService;
+  private OrderService orderService;
 
   public OrderApiController(OrderRepository repo,
                             OrderMessagingService orderMessages,
-                            EmailOrderService emailOrderService) {
+                            OrderService orderService) {
     this.repo = repo;
     this.orderMessages = orderMessages;
-    this.emailOrderService = emailOrderService;
+    this.orderService = orderService;
   }
 
   @GetMapping(produces="application/json")
@@ -62,10 +62,7 @@ public class OrderApiController {
   @PostMapping(path="fromEmail", consumes="application/json")
   @ResponseStatus(HttpStatus.CREATED)
   public Mono<TacoOrder> postOrderFromEmail(@RequestBody Mono<EmailOrder> emailOrder) {
-    Mono<TacoOrder> order = emailOrderService.convertEmailOrderToDomainOrder(emailOrder);
-    order.subscribe(orderMessages::sendOrder); // TODO: not ideal...work into reactive flow below
-    return order
-        .flatMap(repo::save);
+    return orderService.createOrderFromEmail(emailOrder);
   }
 
   @PutMapping(path="/{orderId}", consumes="application/json")

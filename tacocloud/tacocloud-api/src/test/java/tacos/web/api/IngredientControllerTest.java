@@ -21,6 +21,8 @@ import reactor.test.StepVerifier;
 import tacos.Ingredient;
 import tacos.Ingredient.Type;
 import tacos.data.IngredientRepository;
+import tacos.web.api.dto.ApiDtos.IngredientRequest;
+import tacos.web.api.dto.ApiDtos.IngredientResponse;
 
 public class IngredientControllerTest {
     
@@ -92,7 +94,13 @@ public class IngredientControllerTest {
 
     IngredientController controller = new IngredientController(ingredientRepo);
 
-    Mono<ResponseEntity<Ingredient>> resultado = controller.updateIngredient("FLTO", testIngredient);
+    IngredientRequest request = new IngredientRequest();
+
+    request.setId("FLTO");
+    request.setName("Flour Tortilla");
+    request.setType(Type.WRAP);
+
+    Mono<ResponseEntity<IngredientResponse>> resultado = controller.updateIngredient("FLTO",request);
 
     StepVerifier.create(resultado)
         .expectNextMatches(response -> response.getStatusCode().is2xxSuccessful())

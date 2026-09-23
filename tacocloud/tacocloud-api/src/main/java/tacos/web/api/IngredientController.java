@@ -3,13 +3,8 @@ package tacos.web.api;
 import java.net.URI;
 
 import javax.servlet.http.HttpServletRequest;
-import javax.validation.Valid;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,11 +15,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import tacos.Ingredient;
+import tacos.web.api.dto.ApiDtos.IngredientRequest;
+import tacos.web.api.dto.ApiDtos.IngredientResponse;
+import tacos.web.api.mapper.ApiMapper;
 import tacos.data.IngredientRepository;
 
 @RestController
@@ -34,39 +31,48 @@ public class IngredientController {
 
   private IngredientRepository repo;
 
-  @Autowired
   public IngredientController(IngredientRepository repo) {
     this.repo = repo;
   }
 
   @GetMapping
-  public Flux<Ingredient> allIngredients() {
-    return repo.findAll();
+  public Flux<IngredientResponse> allIngredients() {
+    return repo.findAll().map(ApiMapper::toResponse);
   }
 
   @GetMapping("/{id}")
-  public Mono<Ingredient> byId(@PathVariable String id) {
-    return repo.findById(id);
+  public Mono<IngredientResponse> byId(@PathVariable String id) {
+    return repo.findById(id).map(ApiMapper::toResponse);
   }
-
-  @PutMapping("/{id}")
-  public Mono<ResponseEntity<Ingredient>> updateIngredient(@PathVariable String id, @RequestBody Ingredient ingredient) {
-    if (!ingredient.getId().equals(id)) {
-      return Mono.just(ResponseEntity.badRequest().build()); // 400 Bad Request
+  
+  /*
+  * Mantiene 200 / 400 / 404
+  * definidos en TC-01.
+  */
+ @PutMapping("/{id}")
+ public Mono<ResponseEntity<IngredientResponse>> updateIngredient(@PathVariable String id, @RequestBody IngredientRequest request) {
+    if (request.getId() == null || !request.getId().equals(id)) {
+      return Mono.just(ResponseEntity.badRequest().build());
     }
-
+    Ingredient ingredient = ApiMapper.toEntity(request);
+    
     return repo.findById(id)
-      .flatMap(repoFound -> {
-        return repo.save(ingredient)
-          .map(savedIngredient -> ResponseEntity.ok(savedIngredient)); // 200 OK
-      })
-      .defaultIfEmpty(ResponseEntity.notFound().build()); // 404 Not Found
+    .flatMap(found ->
+      repo.save(ingredient)
+      .map(savedIngredient ->
+        ResponseEntity.ok(ApiMapper.toResponse(savedIngredient))))
+        .defaultIfEmpty(ResponseEntity.notFound().build());
   }
-
+    
+  /*
+  * Mantiene la construcción dinámica
+  * de Location implementada en TC-03.
+  */
   @PostMapping
-  public Mono<ResponseEntity<Ingredient>> postIngredient(@Valid @RequestBody Ingredient ingredient, HttpServletRequest request) {
+  public Mono<ResponseEntity<IngredientResponse>> postIngredient(@RequestBody Mono<IngredientRequest> ingredient, HttpServletRequest request) {
 
-    return repo.save(ingredient)
+    return ingredient.map(ApiMapper::toEntity)
+      .flatMap(repo::save)
       .map(savedIngredient -> {
         URI location = ServletUriComponentsBuilder
           .fromRequestUri(request)
@@ -75,18 +81,23 @@ public class IngredientController {
           .toUri();
         return ResponseEntity
           .created(location)
-          .body(savedIngredient);
+          .body(ApiMapper.toResponse(savedIngredient));
       });
   }
 
+  /*
+   * TC-02 no necesita DTO porque
+   * DELETE no recibe ni devuelve
+   * una entidad.
+   */
   @DeleteMapping("/{id}")
   public Mono<ResponseEntity<Void>> deleteIngredient(@PathVariable String id) {
     return repo.findById(id)
-      .flatMap(repoFound -> {
-        return repo.deleteById(id)
-          .thenReturn(ResponseEntity.noContent().<Void>build()); // 204 No Content
-      })
-      .defaultIfEmpty(ResponseEntity.notFound().<Void>build()); // 404 Not Found
+        .flatMap(repoFound -> {
+            return repo.deleteById(id)
+                .thenReturn(ResponseEntity.noContent().<Void>build()); // 204 No Content
+              })
+        .defaultIfEmpty(ResponseEntity.notFound().<Void>build()); // 404 Not Found
   }
 
 }

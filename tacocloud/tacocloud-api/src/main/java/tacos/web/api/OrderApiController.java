@@ -1,6 +1,9 @@
 package tacos.web.api;
 
 import org.springframework.security.core.Authentication;
+
+import javax.validation.Valid;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -20,6 +23,7 @@ import reactor.core.publisher.Mono;
 import tacos.TacoOrder;
 import tacos.web.api.dto.ApiDtos.OrderCreateRequest;
 import tacos.web.api.dto.ApiDtos.OrderResponse;
+import tacos.web.api.error.ApiExceptionHandler.ApiException;
 import tacos.web.api.mapper.ApiMapper;
 import tacos.web.api.mapper.ApiMapper.OrderCreateCommand;
 import tacos.data.OrderRepository;
@@ -54,18 +58,16 @@ public class OrderApiController {
     return repo.findAll().map(ApiMapper::toResponse);
   }
 
-
-  /*
-   * TC-08
-   * El controlador ya no recibe TacoOrder.
-   */
   @PostMapping(consumes="application/json")
   @ResponseStatus(HttpStatus.CREATED)
-  public Mono<OrderResponse> postOrder(@RequestBody OrderCreateRequest request) {
+  public Mono<OrderResponse> postOrder(
+      @Valid @RequestBody OrderCreateRequest request) {
 
     OrderCreateCommand command = ApiMapper.toCommand(request);
 
-    return orderService.createOrder(command).map(ApiMapper::toResponse);
+    return orderService
+      .createOrder(command)
+      .map(ApiMapper::toResponse);
   }
 
   @PostMapping(path="fromEmail", consumes="application/json")
@@ -75,24 +77,26 @@ public class OrderApiController {
   }
 
 
-  /*
-   * Se continúa utilizando
-   * OrderDeliveryRequest creado
-   * en TC-04/TC-05.
-   */
   @PutMapping(path="/{orderId}", consumes="application/json")
-  public Mono<ResponseEntity<OrderResponse>> putOrder(@PathVariable("orderId") String orderId,
-          @RequestBody OrderDeliveryRequest request, Authentication authentication) {
+  public Mono<ResponseEntity<OrderResponse>>
+      putOrder(@PathVariable("orderId") String orderId,
+          @Valid @RequestBody OrderDeliveryRequest request,
+          Authentication authentication) {
 
     if (request.hasUnsupportedFields()) {
-      return Mono.just(ResponseEntity.badRequest().build());
+      return Mono.error(
+        ApiException.badRequest("UNSUPPORTED_FIELDS","The request contains unsupported fields."));
     }
 
     return repo.findById(orderId)
+      .switchIfEmpty(
+        Mono.error(
+          ApiException.notFound("ORDER_NOT_FOUND","Order does not exist.")))
       .flatMap(existingOrder -> {
 
-        if (!canModify(existingOrder, authentication)) {
-          return Mono.just(ResponseEntity.status(HttpStatus.FORBIDDEN).<OrderResponse>build());
+        if (!canModify(existingOrder,authentication)) {
+          return Mono.error(
+            ApiException.forbidden("ORDER_FORBIDDEN","You cannot modify this order."));
         }
 
         existingOrder.setDeliveryName(request.getDeliveryName());
@@ -108,23 +112,28 @@ public class OrderApiController {
         return repo.save(existingOrder)
           .map(savedOrder ->
               ResponseEntity.ok(ApiMapper.toResponse(savedOrder)));
-      })
-      .defaultIfEmpty(ResponseEntity.notFound().build());
+      });
   }
 
-  @PatchMapping(path = "/{orderId}",consumes = "application/json")
-  public Mono<ResponseEntity<OrderResponse>> patchOrder(@PathVariable("orderId") String orderId,
-          @RequestBody OrderDeliveryRequest patch,Authentication authentication) {
+  @PatchMapping(path="/{orderId}",consumes="application/json")
+  public Mono<ResponseEntity<OrderResponse>>
+      patchOrder(@PathVariable("orderId") String orderId,
+        @Valid @RequestBody OrderDeliveryRequest patch,
+        Authentication authentication) {
 
     if (patch.hasUnsupportedFields()) {
-      return Mono.just(ResponseEntity.badRequest().build());
+      return Mono.error(
+        ApiException.badRequest("UNSUPPORTED_FIELDS","The request contains unsupported fields."));
     }
 
     return repo.findById(orderId)
+      .switchIfEmpty(
+        Mono.error(
+          ApiException.notFound("ORDER_NOT_FOUND","Order does not exist.")))
       .flatMap(order -> {
-
-        if (!canModify(order, authentication)) {
-          return Mono.just(ResponseEntity.status(HttpStatus.FORBIDDEN).<OrderResponse>build());
+        if (!canModify(order,authentication)) {
+          return Mono.error(
+            ApiException.forbidden("ORDER_FORBIDDEN","You cannot modify this order."));
         }
 
         if (patch.getDeliveryName() != null) {
@@ -148,32 +157,34 @@ public class OrderApiController {
         }
 
         return repo.save(order)
-          .map(savedOrder ->
-            ResponseEntity.ok(ApiMapper.toResponse(savedOrder)));
-      })
-      .defaultIfEmpty(ResponseEntity.notFound().build());
+            .map(savedOrder ->
+                ResponseEntity.ok(ApiMapper.toResponse(savedOrder)));
+      });
   }
 
   @DeleteMapping("/{orderId}")
-  public Mono<ResponseEntity<Void>> deleteOrder(@PathVariable("orderId") String orderId,
-    Authentication authentication) {
+  public Mono<ResponseEntity<Void>>deleteOrder(@PathVariable("orderId") String orderId,
+        Authentication authentication) {
 
-  return repo.findById(orderId)
+    return repo.findById(orderId)
+      .switchIfEmpty(
+        Mono.error(
+          ApiException.notFound("ORDER_NOT_FOUND","Order does not exist.")))
       .flatMap(order -> {
-
-        if (!canModify(order, authentication)) {
-          return Mono.just(ResponseEntity.status(HttpStatus.FORBIDDEN).<Void>build());
+        if (!canModify(order,authentication)) {
+          return Mono.error(
+            ApiException.forbidden("ORDER_FORBIDDEN","You cannot delete this order."));
         }
 
         if (order.getStatus() == TacoOrder.Status.PREPARING) {
 
-          return Mono.just(ResponseEntity.status(HttpStatus.CONFLICT).<Void>build());
+          return Mono.error(
+            ApiException.conflict("ORDER_ALREADY_PREPARING","An order being prepared cannot be deleted."));
         }
 
         return repo.deleteById(orderId)
-          .thenReturn(ResponseEntity.noContent().<Void>build());
-      })
-      .defaultIfEmpty(ResponseEntity.notFound().<Void>build());
+            .thenReturn(ResponseEntity.noContent().<Void>build());
+      });
   }
 
   private boolean canModify(TacoOrder order,Authentication authentication) {

@@ -3,6 +3,7 @@ package tacos.web.api;
 import java.net.URI;
 
 import javax.servlet.http.HttpServletRequest;
+import javax.validation.Valid;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -21,6 +22,7 @@ import reactor.core.publisher.Mono;
 import tacos.Ingredient;
 import tacos.web.api.dto.ApiDtos.IngredientRequest;
 import tacos.web.api.dto.ApiDtos.IngredientResponse;
+import tacos.web.api.error.ApiExceptionHandler.ApiException;
 import tacos.web.api.mapper.ApiMapper;
 import tacos.data.IngredientRepository;
 
@@ -42,62 +44,63 @@ public class IngredientController {
 
   @GetMapping("/{id}")
   public Mono<IngredientResponse> byId(@PathVariable String id) {
-    return repo.findById(id).map(ApiMapper::toResponse);
+
+    return repo.findById(id)
+      .switchIfEmpty(
+          Mono.error(
+              ApiException.notFound("INGREDIENT_NOT_FOUND","Ingredient does not exist.")))
+      .map(ApiMapper::toResponse);
   }
   
-  /*
-  * Mantiene 200 / 400 / 404
-  * definidos en TC-01.
-  */
- @PutMapping("/{id}")
- public Mono<ResponseEntity<IngredientResponse>> updateIngredient(@PathVariable String id, @RequestBody IngredientRequest request) {
-    if (request.getId() == null || !request.getId().equals(id)) {
-      return Mono.just(ResponseEntity.badRequest().build());
+  @PutMapping("/{id}")
+  public Mono<ResponseEntity<IngredientResponse>>updateIngredient(@PathVariable String id,
+          @Valid @RequestBody IngredientRequest request) {
+
+    if (!request.getId().equals(id)) {
+      return Mono.error(
+        ApiException.badRequest("INGREDIENT_ID_MISMATCH","Path ID and body ID must match."));
     }
+
     Ingredient ingredient = ApiMapper.toEntity(request);
-    
+
     return repo.findById(id)
-    .flatMap(found ->
-      repo.save(ingredient)
-      .map(savedIngredient ->
-        ResponseEntity.ok(ApiMapper.toResponse(savedIngredient))))
-        .defaultIfEmpty(ResponseEntity.notFound().build());
+      .switchIfEmpty(
+        Mono.error(
+          ApiException.notFound("INGREDIENT_NOT_FOUND","Ingredient does not exist.")))
+      .flatMap(found ->repo.save(ingredient))
+      .map(saved ->ResponseEntity.ok(ApiMapper.toResponse(saved)));
   }
     
-  /*
-  * Mantiene la construcción dinámica
-  * de Location implementada en TC-03.
-  */
   @PostMapping
-  public Mono<ResponseEntity<IngredientResponse>> postIngredient(@RequestBody Mono<IngredientRequest> ingredient, HttpServletRequest request) {
+  public Mono<ResponseEntity<IngredientResponse>> postIngredient(@Valid @RequestBody IngredientRequest request,
+          HttpServletRequest servletRequest) {
 
-    return ingredient.map(ApiMapper::toEntity)
-      .flatMap(repo::save)
+    Ingredient ingredient = ApiMapper.toEntity(request);
+
+    return repo.save(ingredient)
       .map(savedIngredient -> {
-        URI location = ServletUriComponentsBuilder
-          .fromRequestUri(request)
-          .pathSegment(savedIngredient.getId())
-          .build()
-          .toUri();
+        URI location =
+          ServletUriComponentsBuilder
+            .fromRequestUri(servletRequest)
+            .pathSegment(savedIngredient.getId())
+            .build()
+            .toUri();
         return ResponseEntity
           .created(location)
           .body(ApiMapper.toResponse(savedIngredient));
       });
   }
 
-  /*
-   * TC-02 no necesita DTO porque
-   * DELETE no recibe ni devuelve
-   * una entidad.
-   */
   @DeleteMapping("/{id}")
   public Mono<ResponseEntity<Void>> deleteIngredient(@PathVariable String id) {
+
     return repo.findById(id)
-        .flatMap(repoFound -> {
-            return repo.deleteById(id)
-                .thenReturn(ResponseEntity.noContent().<Void>build()); // 204 No Content
-              })
-        .defaultIfEmpty(ResponseEntity.notFound().<Void>build()); // 404 Not Found
+      .switchIfEmpty(
+        Mono.error(
+          ApiException.notFound("INGREDIENT_NOT_FOUND","Ingredient does not exist.")))
+      .flatMap(found ->
+        repo.deleteById(id)
+          .thenReturn(ResponseEntity.noContent().<Void>build()));
   }
 
 }

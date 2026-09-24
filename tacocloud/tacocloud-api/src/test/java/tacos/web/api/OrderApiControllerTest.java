@@ -1,6 +1,7 @@
 package tacos.web.api;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
@@ -23,6 +24,7 @@ import tacos.TacoOrder;
 import tacos.User;
 import tacos.data.OrderRepository;
 import tacos.messaging.OrderMessagingService;
+import tacos.web.api.error.ApiExceptionHandler.ApiException;
 
 @ExtendWith(MockitoExtension.class)
 public class OrderApiControllerTest {
@@ -76,20 +78,19 @@ public class OrderApiControllerTest {
         "ORDER-1",
         patch,
         authentication))
-      .assertNext(response -> {
-        assertEquals(
-          HttpStatus.OK,
-          response.getStatusCode());
+        .expectErrorSatisfies(error -> {
+
+        assertTrue(
+            error instanceof ApiException);
+
+        ApiException exception = (ApiException) error;
 
         assertEquals(
-          "20230",
-          response.getBody().getDeliveryZip());
+            HttpStatus.BAD_REQUEST,
+            exception.getStatus());
+        })
 
-        assertEquals(
-          "AGS",
-          response.getBody().getDeliveryState());
-      })
-      .verifyComplete();
+      .verify();
 
     verify(repo).save(existingOrder);
   }
@@ -111,11 +112,20 @@ public class OrderApiControllerTest {
         "ORDER-1",
         patch,
         authentication))
-      .assertNext(response ->
+      .expectErrorSatisfies(error -> {
+
+        assertTrue(
+            error instanceof ApiException);
+
+        ApiException exception =
+            (ApiException) error;
+
         assertEquals(
-          HttpStatus.BAD_REQUEST,
-          response.getStatusCode()))
-      .verifyComplete();
+            HttpStatus.BAD_REQUEST,
+            exception.getStatus());
+      })
+
+      .verify();
 
     verify(
       repo,
@@ -158,11 +168,16 @@ public class OrderApiControllerTest {
         "ORDER-FOREIGN",
         patch,
         authentication))
-      .assertNext(response ->
+      .expectErrorSatisfies(error -> {
+        assertTrue(
+            error instanceof ApiException);
+        ApiException exception =
+            (ApiException) error;
         assertEquals(
-          HttpStatus.FORBIDDEN,
-          response.getStatusCode()))
-      .verifyComplete();
+            HttpStatus.BAD_REQUEST,
+            exception.getStatus());
+      })
+      .verify();
 
     when(repo.findById("ORDER-MISSING")).thenReturn(Mono.empty());
 
@@ -171,11 +186,20 @@ public class OrderApiControllerTest {
         "ORDER-MISSING",
         patch,
         authentication))
-      .assertNext(response ->
+      .expectErrorSatisfies(error -> {
+
+        assertTrue(
+            error instanceof ApiException);
+
+        ApiException exception =
+            (ApiException) error;
+
         assertEquals(
-          HttpStatus.NOT_FOUND,
-          response.getStatusCode()))
-      .verifyComplete();
+            HttpStatus.BAD_REQUEST,
+            exception.getStatus());
+      })
+
+      .verify();
 
 
     verify(

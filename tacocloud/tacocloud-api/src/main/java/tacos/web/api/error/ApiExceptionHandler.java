@@ -16,6 +16,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 import org.springframework.http.converter.HttpMessageNotReadableException;
 
@@ -136,6 +137,26 @@ public class ApiExceptionHandler {
         Collections.emptyList());
   }
 
+  @ExceptionHandler(ResponseStatusException.class)
+  public ResponseEntity<ApiProblem> handleResponseStatusException(
+          ResponseStatusException exception,HttpServletRequest request) {
+
+    HttpStatus status = exception.getStatus();
+
+    String detail =
+        exception.getReason() != null ? exception.getReason() : status.getReasonPhrase();
+
+    String code = 
+        status == HttpStatus.CONFLICT ? "CONFLICT" : status.name();
+
+    return problem(
+        status,
+        code,
+        titleFor(status),
+        detail,
+        request.getRequestURI(),
+        Collections.emptyList());
+  }
 
   @ExceptionHandler(Exception.class)
   public ResponseEntity<ApiProblem> handleUnexpected(Exception exception,HttpServletRequest request) {

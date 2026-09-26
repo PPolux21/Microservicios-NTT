@@ -13,7 +13,7 @@ import org.springframework.security.config.annotation.web
 import org.springframework.security.config.annotation.web
                         .configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.crypto.password.NoOpPasswordEncoder;
+import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 @SuppressWarnings("deprecation")
@@ -62,8 +62,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
   @Bean
   public PasswordEncoder encoder() {
-//    return new StandardPasswordEncoder("53cr3t");
-    return NoOpPasswordEncoder.getInstance();
+    return PasswordEncoderFactories.createDelegatingPasswordEncoder();
   }
   
   

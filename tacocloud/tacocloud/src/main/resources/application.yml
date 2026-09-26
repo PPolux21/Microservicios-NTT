@@ -54,6 +54,8 @@ spring:
       valueSerializer: org.springframework.kafka.support.serializer.JsonSerializer
   jmx:
     enabled: true
+  mongodb:
+      auto-index-creation: true
 
 #tag::exposeAll[]
 #tag::excludeSome[]

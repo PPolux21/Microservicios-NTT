@@ -61,6 +61,10 @@ spring:
 #tag::excludeSome[]
 #tag::healthShowDetails[]
 #tag::infoGitModeFull[]
+tacocloud:
+  cors:
+    allowed-origins: http://localhost:4200
+
 management:
 #end::infoGitModeFull[]
 #end::healthShowDetails[]

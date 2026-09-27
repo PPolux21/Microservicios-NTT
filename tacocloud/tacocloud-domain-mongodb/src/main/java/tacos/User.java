@@ -1,6 +1,7 @@
 package tacos;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -22,6 +23,12 @@ import lombok.RequiredArgsConstructor;
 @Document
 public class User implements UserDetails {
 
+  public enum Role {
+    USER,
+    ADMIN,
+    KITCHEN
+  }
+
   private static final long serialVersionUID = 1L;
 
   @Id
@@ -41,10 +48,16 @@ public class User implements UserDetails {
 
   @Indexed(unique=true)
   private final String email;
+
+  private Role role = Role.USER;
   
   @Override
   public Collection<? extends GrantedAuthority> getAuthorities() {
-    return Arrays.asList(new SimpleGrantedAuthority("ROLE_USER"));
+
+    Role effectiveRole = 
+      role != null ? role: Role.USER;
+
+    return Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + effectiveRole.name()));
   }
 
   @Override

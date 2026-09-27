@@ -6,7 +6,6 @@ import javax.validation.Valid;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -32,7 +31,6 @@ import tacos.messaging.OrderMessagingService;
 @RestController
 @RequestMapping(path="/api/orders",
                 produces="application/json")
-@CrossOrigin(origins="http://localhost:8080")
 public class OrderApiController {
 
   private OrderRepository repo;
@@ -53,20 +51,24 @@ public class OrderApiController {
     this.orderService = orderService;
   }
 
-  @GetMapping(produces="application/json")
-  public Flux<OrderResponse> allOrders() {
-    return repo.findAll().map(ApiMapper::toResponse);
+  @GetMapping
+  public Flux<OrderResponse> allOrders(Authentication authentication) {
+
+    return orderService
+      .findOrdersFor(authentication)
+      .map(ApiMapper::toResponse);
   }
 
   @PostMapping(consumes="application/json")
   @ResponseStatus(HttpStatus.CREATED)
   public Mono<OrderResponse> postOrder(
-      @Valid @RequestBody OrderCreateRequest request) {
+      @Valid @RequestBody OrderCreateRequest request,
+      Authentication authentication) {
 
     OrderCreateCommand command = ApiMapper.toCommand(request);
 
     return orderService
-      .createOrder(command)
+      .createOrder(command,authentication)
       .map(ApiMapper::toResponse);
   }
 
@@ -94,7 +96,7 @@ public class OrderApiController {
           ApiException.notFound("ORDER_NOT_FOUND","Order does not exist.")))
       .flatMap(existingOrder -> {
 
-        if (!canModify(existingOrder,authentication)) {
+        if (!orderService.canAccessOrder(existingOrder,authentication)) {
           return Mono.error(
             ApiException.forbidden("ORDER_FORBIDDEN","You cannot modify this order."));
         }
@@ -131,7 +133,7 @@ public class OrderApiController {
         Mono.error(
           ApiException.notFound("ORDER_NOT_FOUND","Order does not exist.")))
       .flatMap(order -> {
-        if (!canModify(order,authentication)) {
+        if (!orderService.canAccessOrder(order,authentication)) {
           return Mono.error(
             ApiException.forbidden("ORDER_FORBIDDEN","You cannot modify this order."));
         }
@@ -171,7 +173,7 @@ public class OrderApiController {
         Mono.error(
           ApiException.notFound("ORDER_NOT_FOUND","Order does not exist.")))
       .flatMap(order -> {
-        if (!canModify(order,authentication)) {
+        if (!orderService.canAccessOrder(order,authentication)) {
           return Mono.error(
             ApiException.forbidden("ORDER_FORBIDDEN","You cannot delete this order."));
         }
@@ -187,7 +189,7 @@ public class OrderApiController {
       });
   }
 
-  private boolean canModify(TacoOrder order,Authentication authentication) {
+  private boolean orderService.canAccessOrder(TacoOrder order,Authentication authentication) {
 
     if (authentication == null) {
       return false;

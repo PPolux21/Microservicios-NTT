@@ -1,24 +1,34 @@
 package tacos.web.api;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.Authentication;
+import org.springframework.data.domain.Pageable;
 
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 import tacos.TacoOrder;
+import tacos.User;
 import tacos.data.OrderRepository;
+import tacos.data.UserRepository;
 import tacos.messaging.OrderMessagingService;
 
 public class OrderServiceTest {
@@ -28,6 +38,7 @@ public class OrderServiceTest {
   private EmailOrderService emailOrderService;
 
   private OrderService service;
+  private UserRepository userRepo;
 
   @BeforeEach
   public void setup() {
@@ -37,8 +48,10 @@ public class OrderServiceTest {
     orderMessages = Mockito.mock(OrderMessagingService.class);
 
     emailOrderService = Mockito.mock(EmailOrderService.class);
+    
+    userRepo = Mockito.mock(UserRepository.class);
 
-    service = new OrderService(repo,orderMessages,emailOrderService);
+    service = new OrderService(repo,orderMessages,emailOrderService,userRepo);
   }
 
 
@@ -165,5 +178,77 @@ public class OrderServiceTest {
     assertEquals(1,saveSubscriptions.get());
 
     verify(orderMessages,times(1)).sendOrder(savedOrder);
+  }
+
+  @Test
+  public void shouldEnforceOrderOwnershipInService() {
+
+    User jose = Mockito.mock(User.class);
+
+    User ana = Mockito.mock(User.class);
+
+    when(jose.getUsername()).thenReturn("jose");
+
+    when(ana.getUsername()).thenReturn("ana");
+
+
+    TacoOrder joseOrder = new TacoOrder();
+
+    joseOrder.setUser(jose);
+
+    TacoOrder anaOrder = new TacoOrder();
+
+    anaOrder.setUser(ana);
+
+
+    Authentication userAuth = Mockito.mock(Authentication.class);
+
+    when(userAuth.getName())
+        .thenReturn("jose");
+
+    doReturn(
+      Collections.singletonList(
+          new SimpleGrantedAuthority(
+              "ROLE_ADMIN")))
+      .when(userAuth)
+      .getAuthorities();
+
+    when(
+        userRepo.findByUsername("jose"))
+        .thenReturn(Mono.just(jose));
+
+
+    when(
+        repo.findByUserOrderByPlacedAtDesc(
+            Mockito.eq(jose),
+            Mockito.any(Pageable.class)))
+
+        .thenReturn(Flux.just(joseOrder));
+
+    StepVerifier.create(
+        service.findOrdersFor(userAuth))
+        .expectNext(joseOrder)
+        .verifyComplete();
+
+    assertFalse(
+        service.canAccessOrder(anaOrder,userAuth));
+
+    Authentication adminAuth = Mockito.mock(Authentication.class);
+
+    doReturn(
+      Collections.singletonList(
+          new SimpleGrantedAuthority(
+              "ROLE_ADMIN")))
+      .when(adminAuth)
+      .getAuthorities();
+
+    when(repo.findAll())
+        .thenReturn(Flux.just(joseOrder,anaOrder));
+
+    StepVerifier.create(service.findOrdersFor(adminAuth))
+        .expectNext(joseOrder,anaOrder)
+        .verifyComplete();
+
+    assertTrue(service.canAccessOrder(anaOrder,adminAuth));
   }
 }

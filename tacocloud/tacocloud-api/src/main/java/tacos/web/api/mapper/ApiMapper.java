@@ -74,11 +74,7 @@ public final class ApiMapper {
         request.getDeliveryCity(),
         request.getDeliveryState(),
         request.getDeliveryZip(),
-        /*
-        request.getCcNumber(),
-        request.getCcExpiration(),
-        request.getCcCVV(),
-        */
+        request.getPaymentMethodId(),
         tacos);
   }
 
@@ -91,11 +87,6 @@ public final class ApiMapper {
     order.setDeliveryCity(command.getDeliveryCity());
     order.setDeliveryState(command.getDeliveryState());
     order.setDeliveryZip(command.getDeliveryZip());
-    /*
-    order.setCcNumber(command.getCcNumber());
-    order.setCcExpiration(command.getCcExpiration());
-    order.setCcCVV(command.getCcCVV());
-    */
 
     for (TacoCommand tacoCommand : command.getTacos()) {
       Taco taco = new Taco();
@@ -161,11 +152,7 @@ public final class ApiMapper {
     private String deliveryCity;
     private String deliveryState;
     private String deliveryZip;
-    /*
-    private String ccNumber;
-    private String ccExpiration;
-    private String ccCVV;
-    */
+    private String paymentMethodId;
     private List<TacoCommand> tacos;
   }
 

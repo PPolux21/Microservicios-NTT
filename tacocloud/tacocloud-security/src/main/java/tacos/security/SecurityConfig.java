@@ -106,6 +106,13 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
             "/actuator/**")
         .hasRole("ADMIN")
 
+        .antMatchers(
+            HttpMethod.POST,
+            "/api/payment-methods/tokenize")
+        .hasAnyRole(
+            "USER",
+            "ADMIN")
+
         .anyRequest()
         .denyAll()
 

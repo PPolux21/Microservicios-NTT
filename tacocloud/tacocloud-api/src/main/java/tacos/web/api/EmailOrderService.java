@@ -35,16 +35,22 @@ public class EmailOrderService {
     return emailOrder.flatMap(eOrder ->
 
         userRepo.findByEmail(eOrder.getEmail())
+          .switchIfEmpty(
+            Mono.error(new UserNotFoundException(eOrder.getEmail())))
+          .flatMap(user ->
+            paymentMethodRepo
+            .findByUserId(user.getId())
+            .filter(paymentMethod ->
+              paymentMethod
+                .getPaymentToken()
+                != null
+              && !paymentMethod
+                .getPaymentToken()
+                .isEmpty())
             .switchIfEmpty(
-              Mono.error(new UserNotFoundException(eOrder.getEmail())))
-            .flatMap(user ->
-              paymentMethodRepo
-                .findByUserId(user.getId())
-                .switchIfEmpty(
-                  Mono.error(new PaymentMethodNotFoundException(user.getId())))
-                .flatMap(paymentMethod ->
-                  convertTacos(eOrder.getTacos())
-                    .map(tacos -> buildOrder(user,paymentMethod,tacos)))));
+              Mono.error(new PaymentMethodNotFoundException(user.getId())))
+            .then(convertTacos(eOrder.getTacos()))
+            .map(tacos ->buildOrder( user,tacos))));
 }
 
   private Mono<List<Taco>> convertTacos(List<EmailTaco> emailTacos) {
@@ -72,14 +78,11 @@ public class EmailOrderService {
         });
   }
 
-  private TacoOrder buildOrder(User user,PaymentMethod paymentMethod,List<Taco> tacos) {
+  private TacoOrder buildOrder(User user,List<Taco> tacos) {
 
     TacoOrder order = new TacoOrder();
 
     order.setUser(user);
-    order.setCcNumber(paymentMethod.getCcNumber());
-    order.setCcCVV(paymentMethod.getCcCVV());
-    order.setCcExpiration(paymentMethod.getCcExpiration());
     order.setDeliveryName(user.getFullname());
     order.setDeliveryStreet(user.getStreet());
     order.setDeliveryCity(user.getCity());

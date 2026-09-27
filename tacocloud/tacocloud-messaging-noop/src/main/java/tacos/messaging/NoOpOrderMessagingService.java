@@ -10,8 +10,11 @@ import tacos.TacoOrder;
 public class NoOpOrderMessagingService
        implements OrderMessagingService {
   
+  @Override
   public void sendOrder(TacoOrder order) {
-    log.info("Sending order to kitchen: " + order);
+
+    log.info("Order published to kitchen. orderId={}",
+      order != null ? order.getId() : null);
   }
   
 }

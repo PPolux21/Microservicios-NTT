@@ -3,16 +3,20 @@ package tacos.web.api;
 import java.util.Date;
 
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import tacos.User;
 import tacos.TacoOrder;
+import tacos.PaymentMethod;
 import tacos.web.api.mapper.ApiMapper;
 import tacos.web.api.mapper.ApiMapper.OrderCreateCommand;
 import tacos.data.OrderRepository;
+import tacos.data.PaymentMethodRepository;
 import tacos.data.UserRepository;
 import tacos.messaging.OrderMessagingService;
 
@@ -23,17 +27,20 @@ public class OrderService {
   private OrderMessagingService orderMessages;
   private EmailOrderService emailOrderService;
   private UserRepository userRepo;
+  private PaymentMethodRepository paymentMethodRepo;
 
   public OrderService(
       OrderRepository repo,
       OrderMessagingService orderMessages,
       EmailOrderService emailOrderService,
-      UserRepository userRepo) {
+      UserRepository userRepo,
+      PaymentMethodRepository paymentMethodRepo) {
 
     this.repo = repo;
     this.orderMessages = orderMessages;
     this.emailOrderService = emailOrderService;
     this.userRepo = userRepo;
+    this.paymentMethodRepo = paymentMethodRepo;
   }
 
   public Mono<TacoOrder> createOrder(OrderCreateCommand command, 
@@ -41,29 +48,38 @@ public class OrderService {
 
     if (authentication == null) {
       return Mono.error(
-        new IllegalStateException("Authenticated user required"));
+          new ResponseStatusException(HttpStatus.UNAUTHORIZED,"Authentication required"));
     }
-
 
     return userRepo
       .findByUsername(
-        authentication.getName())
+          authentication.getName())
       .switchIfEmpty(
-        Mono.error(
-          new IllegalStateException("Authenticated user not found")))
-      .flatMap(user -> {
-        TacoOrder order = ApiMapper.toEntity(command);
+          Mono.error(
+              new ResponseStatusException(HttpStatus.NOT_FOUND,"Authenticated user not found")))
+      .flatMap(user ->
+        paymentMethodRepo
+            .findById(command.getPaymentMethodId())
+            .filter(method ->
+              user.getId().equals(method.getId()))
+            .filter(method ->
+              method.getPaymentToken() != null && !method
+                .getPaymentToken()
+                .isEmpty())
+            .switchIfEmpty(
+              Mono.error(
+                new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,"Valid tokenized payment method required")))
+            .flatMap(paymentMethod -> {
+              TacoOrder order = ApiMapper.toEntity(command);
+              order.setUser(user);
+              order.setPlacedAt(new Date());
 
-        order.setUser(user);
-
-        order.setPlacedAt(new Date());
-
-        return repo.save(order)
-          .flatMap(savedOrder ->
-            Mono.fromRunnable(() ->
-              orderMessages.sendOrder(savedOrder))
-            .thenReturn(savedOrder));
-      });
+              return repo
+                .save(order)
+                .flatMap(savedOrder ->
+                  Mono.fromRunnable(() -> orderMessages.sendOrder(savedOrder))
+                  .thenReturn(savedOrder));
+            }));
   }
 
   /*

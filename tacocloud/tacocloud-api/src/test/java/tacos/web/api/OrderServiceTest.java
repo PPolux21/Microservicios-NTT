@@ -12,24 +12,35 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.lang.reflect.Field;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.springframework.security.core.Authentication;
 import org.springframework.data.domain.Pageable;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
+import tacos.PaymentMethod;
 import tacos.TacoOrder;
 import tacos.User;
 import tacos.data.OrderRepository;
+import tacos.data.PaymentMethodRepository;
 import tacos.data.UserRepository;
 import tacos.messaging.OrderMessagingService;
+import tacos.web.api.mapper.ApiMapper.OrderCreateCommand;
 
 public class OrderServiceTest {
 
@@ -39,6 +50,7 @@ public class OrderServiceTest {
 
   private OrderService service;
   private UserRepository userRepo;
+  private PaymentMethodRepository paymentMethodRepo;
 
   @BeforeEach
   public void setup() {
@@ -50,8 +62,10 @@ public class OrderServiceTest {
     emailOrderService = Mockito.mock(EmailOrderService.class);
     
     userRepo = Mockito.mock(UserRepository.class);
+    
+    paymentMethodRepo = Mockito.mock(PaymentMethodRepository.class);
 
-    service = new OrderService(repo,orderMessages,emailOrderService,userRepo);
+    service = new OrderService(repo,orderMessages,emailOrderService,userRepo,paymentMethodRepo);
   }
 
 
@@ -250,5 +264,77 @@ public class OrderServiceTest {
         .verifyComplete();
 
     assertTrue(service.canAccessOrder(anaOrder,adminAuth));
+  }
+
+  @Test
+  public void shouldCreateOrderWithoutPaymentData()
+      throws Exception {
+
+    User user = Mockito.mock(User.class);
+
+    when(user.getId()).thenReturn("USER-1");
+
+    Authentication authentication = Mockito.mock(Authentication.class);
+
+    when(authentication.getName()).thenReturn("jose");
+
+    when(userRepo.findByUsername("jose")).thenReturn(Mono.just(user));
+
+    PaymentMethod paymentMethod = new PaymentMethod(user);
+
+    paymentMethod.setId("PAYMENT-1");
+    paymentMethod.setId("USER-1");
+    paymentMethod.setPaymentToken("tok_fake_test");
+    paymentMethod.setBrand("VISA");
+    paymentMethod.setLast4("1111");
+
+    when(paymentMethodRepo.findById("PAYMENT-1")).thenReturn(Mono.just(paymentMethod));
+
+    OrderCreateCommand command = Mockito.mock(OrderCreateCommand.class);
+
+    when(command.getPaymentMethodId()).thenReturn("PAYMENT-1");
+    when(command.getTacos()).thenReturn(Collections.emptyList());
+
+    TacoOrder saved = new TacoOrder();
+
+    saved.setId("ORDER-1");
+
+    when(repo.save(any(TacoOrder.class))).thenReturn(Mono.just(saved));
+
+    StepVerifier.create(
+      service.createOrder(command,authentication))
+      .expectNext(saved)
+      .verifyComplete();
+
+    ArgumentCaptor<TacoOrder> captor =
+        ArgumentCaptor.forClass(TacoOrder.class);
+
+    verify(repo).save(captor.capture());
+
+    TacoOrder persisted = captor.getValue();
+
+    List<String> fieldNames = Arrays.stream(TacoOrder.class.getDeclaredFields())
+        .map(Field::getName)
+        .collect(Collectors.toList());
+
+    assertFalse(fieldNames.contains("ccNumber"));
+    assertFalse(fieldNames.contains("ccCVV"));
+    assertFalse(fieldNames.contains("ccExpiration"));
+
+    ArgumentCaptor<TacoOrder>
+        messageCaptor = ArgumentCaptor.forClass(TacoOrder.class);
+
+    verify(orderMessages).sendOrder(messageCaptor.capture());
+
+    ObjectMapper mapper = new ObjectMapper();
+  
+    String eventJson =
+        mapper.writeValueAsString(messageCaptor.getValue());
+
+    assertFalse(eventJson.contains("paymentToken"));
+    assertFalse(eventJson.contains("cardNumber"));
+    assertFalse(eventJson.contains("cvv"));
+    assertFalse(eventJson.contains("last4"));
+    assertFalse(eventJson.contains("brand"));
   }
 }

@@ -31,12 +31,6 @@ public class TacoOrder implements Serializable {
 
   private String deliveryZip;
 
-  private String ccNumber;
-
-  private String ccExpiration;
-
-  private String ccCVV;
-
 
   private List<Taco> tacos = new ArrayList<>();
 

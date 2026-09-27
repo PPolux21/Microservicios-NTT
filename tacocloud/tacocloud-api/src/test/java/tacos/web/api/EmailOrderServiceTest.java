@@ -64,6 +64,7 @@ public class EmailOrderServiceTest {
     when(user.getId()).thenReturn("USER-1");
     when(userRepo.findByEmail("jose@test.com")).thenReturn(Mono.just(user));
     when(paymentMethodRepo.findByUserId("USER-1")).thenReturn(Mono.just(paymentMethod));
+    when(paymentMethod.getPaymentToken()).thenReturn("tok_fake_test");
 
     when(ingredientRepo.findById("FLTO")).thenReturn(Mono.just(flour));
     when(ingredientRepo.findById("GRBF")).thenReturn(Mono.just(beef));
@@ -107,6 +108,7 @@ public class EmailOrderServiceTest {
     when(paymentMethodRepo.findByUserId("USER-1")).thenReturn(Mono.just(paymentMethod));
     when(ingredientRepo.findById("FLTO")).thenReturn(Mono.just(flour));
     when(ingredientRepo.findById("UNKNOWN")).thenReturn(Mono.empty());
+    when(paymentMethod.getPaymentToken()).thenReturn("tok_fake_test");
 
     StepVerifier.create(
         service.convertEmailOrderToDomainOrder(

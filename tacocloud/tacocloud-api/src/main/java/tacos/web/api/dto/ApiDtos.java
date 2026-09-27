@@ -11,9 +11,11 @@ import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.ToString;
 import lombok.NoArgsConstructor;
 import tacos.Ingredient.Type;
 
@@ -73,6 +75,9 @@ public final class ApiDtos {
     @Pattern(regexp="[A-Za-z0-9 -]{3,10}",message="deliveryZip has an invalid format")
     private String deliveryZip;
 
+    @NotBlank
+    private String paymentMethodId;
+
     @Valid
     @NotNull(message="tacos are required")
     @Size(min=1,max=20,message="order must contain between 1 and 20 tacos")
@@ -122,5 +127,42 @@ public final class ApiDtos {
 
     private String name;
     private List<IngredientResponse> ingredients;
+  }
+
+  @Data
+  @NoArgsConstructor
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  public static class PaymentTokenizeRequest {
+
+    @NotBlank
+    @Pattern(regexp = "\\d{12,19}")
+    @JsonProperty(
+        access = JsonProperty.Access.WRITE_ONLY)
+    @ToString.Exclude
+    private String cardNumber;
+
+
+    @NotBlank
+    @Pattern(regexp = "\\d{3,4}")
+    @JsonProperty(
+        access = JsonProperty.Access.WRITE_ONLY)
+    @ToString.Exclude
+    private String cvv;
+
+
+    @NotBlank
+    @Pattern(regexp = "\\d{2}/\\d{2}")
+    private String expiration;
+  }
+
+  @Data
+  @AllArgsConstructor
+  public static class PaymentMethodResponse {
+
+    private String id;
+
+    private String brand;
+
+    private String last4;
   }
 }

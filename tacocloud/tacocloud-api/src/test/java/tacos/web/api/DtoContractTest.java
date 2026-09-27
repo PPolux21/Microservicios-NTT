@@ -25,7 +25,7 @@ import tacos.web.api.dto.ApiDtos.IngredientRequest;
 import tacos.web.api.dto.ApiDtos.OrderCreateRequest;
 import tacos.web.api.dto.ApiDtos.OrderResponse;
 import tacos.web.api.dto.ApiDtos.OrderTacoRequest;
-
+import tacos.web.api.dto.ApiDtos.PaymentMethodResponse;
 import tacos.web.api.mapper.ApiMapper;
 import tacos.web.api.mapper.ApiMapper.OrderCreateCommand;
 
@@ -45,11 +45,6 @@ public class DtoContractTest {
 
     order.setId("ORDER-1");
     order.setDeliveryName("Jose");
-    /*
-    order.setCcNumber("4111111111111111");
-    order.setCcCVV("321");
-    order.setCcExpiration("10/30");
-    */
     User user = Mockito.mock(User.class);
 
     order.setUser(user);
@@ -153,10 +148,9 @@ public class DtoContractTest {
       + "\"id\":\"ORDER-HACK\","
       + "\"placedAt\":\"2000-01-01T00:00:00Z\","
       + "\"status\":\"PREPARING\","
-      + "\"total\":0,"
       + "\"userId\":\"OTHER-USER\","
-      + "\"ccNumber\":\"4111111111111111\","
-      + "\"ccCVV\":\"321\""
+      + "\"ccNumber\":\"TEST-PAN\","
+      + "\"ccCVV\":\"TEST-CVV\""
       + "}";
 
     ObjectMapper mapper = new ObjectMapper();
@@ -179,5 +173,23 @@ public class DtoContractTest {
     assertNull(order.getUser());
 
     assertTrue(order.getStatus() == null || order.getStatus() == TacoOrder.Status.CREATED);
+  }
+
+  @Test
+  public void shouldSerializeOnlySafePaymentFields()
+      throws Exception {
+
+    PaymentMethodResponse response =
+        new PaymentMethodResponse("PAYMENT-1","VISA","1111");
+
+    ObjectMapper mapper = new ObjectMapper();
+
+    String json = mapper.writeValueAsString(response);
+
+    assertTrue(json.contains("\"brand\":\"VISA\""));
+    assertTrue(json.contains("\"last4\":\"1111\""));
+    assertFalse(json.contains("paymentToken"));
+    assertFalse(json.contains("cardNumber"));
+    assertFalse(json.contains("cvv"));
   }
 }

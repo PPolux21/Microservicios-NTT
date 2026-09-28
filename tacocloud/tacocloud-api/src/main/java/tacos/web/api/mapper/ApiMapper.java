@@ -1,6 +1,7 @@
 package tacos.web.api.mapper;
 
 import java.util.ArrayList;
+import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -16,6 +17,8 @@ import tacos.web.api.dto.ApiDtos.IngredientRequest;
 import tacos.web.api.dto.ApiDtos.IngredientAdminResponse;
 import tacos.web.api.dto.ApiDtos.IngredientResponse;
 import tacos.web.api.dto.ApiDtos.OrderCreateRequest;
+import tacos.web.api.dto.ApiDtos.OrderQuoteRequest;
+import tacos.web.api.dto.ApiDtos.OrderQuoteResponse;
 import tacos.web.api.dto.ApiDtos.OrderItemResponse;
 import tacos.web.api.dto.ApiDtos.OrderResponse;
 import tacos.web.api.dto.ApiDtos.OrderTacoResponse;
@@ -63,23 +66,6 @@ public final class ApiMapper {
    */
   public static OrderCreateCommand toCommand(OrderCreateRequest request) {
 
-    List<OrderItemCommand> items =
-      request.getItems() != null
-        ? request.getItems()
-            .stream()
-            .map(item -> {
-              List<String> ingredientIds = item.getTaco().getIngredientIds() != null
-                  ? new ArrayList<>(item.getTaco().getIngredientIds())
-                  : Collections.emptyList();
-
-              TacoCommand taco = new TacoCommand(
-                  item.getTaco().getName(),ingredientIds);
-
-              return new OrderItemCommand(taco,item.getQuantity());
-            }).collect(Collectors.toList())
-        : Collections.emptyList();
-
-
     return new OrderCreateCommand(
         request.getDeliveryName(),
         request.getDeliveryStreet(),
@@ -87,7 +73,13 @@ public final class ApiMapper {
         request.getDeliveryState(),
         request.getDeliveryZip(),
         request.getPaymentMethodId(),
-        items);
+        toItemCommands(request.getItems()),
+        request.getCouponCode());
+  }
+
+  public static OrderQuoteCommand toCommand(OrderQuoteRequest request) {
+    return new OrderQuoteCommand(
+        toItemCommands(request.getItems()),request.getCouponCode());
   }
 
   public static TacoOrder toEntity(OrderCreateCommand command) {
@@ -131,8 +123,31 @@ public final class ApiMapper {
         order.getStatus() != null ? order.getStatus().name() : null,
         tacos,
         items,
+        order.getSubtotal(),
+        order.getAppliedCouponCode(),
+        order.getDiscountAmount(),
         order.getTotal(),
         order.getCurrency());
+  }
+
+  public static OrderQuoteResponse toResponse(OrderQuote quote) {
+    return new OrderQuoteResponse(
+        quote.isValid(),quote.getSubtotal(),quote.getDiscount(),
+        quote.getTotal(),quote.getCurrency());
+  }
+
+  private static List<OrderItemCommand> toItemCommands(
+      List<tacos.web.api.dto.ApiDtos.OrderItemRequest> requestItems) {
+    return requestItems != null
+        ? requestItems.stream().map(item -> {
+          List<String> ingredientIds = item.getTaco().getIngredientIds() != null
+              ? new ArrayList<>(item.getTaco().getIngredientIds())
+              : Collections.emptyList();
+          return new OrderItemCommand(
+              new TacoCommand(item.getTaco().getName(),ingredientIds),
+              item.getQuantity());
+        }).collect(Collectors.toList())
+        : Collections.emptyList();
   }
 
 
@@ -169,6 +184,24 @@ public final class ApiMapper {
     private String deliveryZip;
     private String paymentMethodId;
     private List<OrderItemCommand> items;
+    private String couponCode;
+  }
+
+  @Data
+  @AllArgsConstructor
+  public static class OrderQuoteCommand {
+    private List<OrderItemCommand> items;
+    private String couponCode;
+  }
+
+  @Data
+  @AllArgsConstructor
+  public static class OrderQuote {
+    private boolean valid;
+    private BigDecimal subtotal;
+    private BigDecimal discount;
+    private BigDecimal total;
+    private String currency;
   }
 
 

@@ -1,5 +1,6 @@
 package tacos;
 
+import java.time.Clock;
 import java.util.Collections;
 import java.util.Map;
 
@@ -17,6 +18,11 @@ public class TacoCloudApplication {
 
   public static void main(String[] args) {
     SpringApplication.run(TacoCloudApplication.class, args);
+  }
+
+  @Bean
+  Clock couponClock() {
+    return Clock.systemUTC();
   }
 
   // To avoid 404s when using Angular HTML 5 routing

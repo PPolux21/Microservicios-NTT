@@ -41,6 +41,12 @@ public class TacoOrder implements Serializable {
 
   private List<OrderItem> items = new ArrayList<>();
 
+  private BigDecimal subtotal = BigDecimal.ZERO.setScale(2);
+
+  private String appliedCouponCode;
+
+  private BigDecimal discountAmount = BigDecimal.ZERO.setScale(2);
+
   private BigDecimal total = BigDecimal.ZERO.setScale(2);
 
   private String currency = "MXN";

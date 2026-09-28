@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.math.BigDecimal;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,6 +26,13 @@ import tacos.User;
 import tacos.data.OrderRepository;
 import tacos.messaging.OrderMessagingService;
 import tacos.web.api.error.ApiExceptionHandler.ApiException;
+import tacos.web.api.dto.ApiDtos.OrderItemRequest;
+import tacos.web.api.dto.ApiDtos.OrderQuoteRequest;
+import tacos.web.api.dto.ApiDtos.OrderTacoRequest;
+import tacos.web.api.mapper.ApiMapper.OrderQuote;
+import tacos.web.api.mapper.ApiMapper.OrderQuoteCommand;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @ExtendWith(MockitoExtension.class)
 public class OrderApiControllerTest {
@@ -339,5 +347,44 @@ public class OrderApiControllerTest {
         .verifyComplete();
 
     verify(repo, never()).deleteById(anyString());
+  }
+
+  @Test
+  public void shouldReturnSafeQuoteWithoutCouponEnumeration()
+      throws Exception {
+
+    OrderTacoRequest taco = new OrderTacoRequest();
+    taco.setName("Quote Taco");
+    taco.setIngredientIds(Collections.singletonList("FLTO"));
+    OrderItemRequest item = new OrderItemRequest();
+    item.setTaco(taco);
+    item.setQuantity(2);
+    OrderQuoteRequest request = new OrderQuoteRequest();
+    request.setItems(Collections.singletonList(item));
+    request.setCouponCode("promo10");
+
+    when(orderService.quote(any(OrderQuoteCommand.class)))
+        .thenReturn(Mono.just(new OrderQuote(
+            true,new BigDecimal("20.00"),new BigDecimal("2.00"),
+            new BigDecimal("18.00"),"MXN")));
+
+    StepVerifier.create(controller.quote(request))
+        .assertNext(response -> {
+          assertTrue(response.isValid());
+          assertEquals(new BigDecimal("2.00"),response.getDiscount());
+          String json;
+          try {
+            json = new ObjectMapper().writeValueAsString(response);
+          } catch (Exception exception) {
+            throw new AssertionError(exception);
+          }
+          assertTrue(!json.contains("couponCode"));
+          assertTrue(!json.contains("rules"));
+          assertTrue(!json.contains("coupons"));
+        })
+        .verifyComplete();
+
+    verify(repo,never()).save(any(TacoOrder.class));
+    verify(orderMessages,never()).sendOrder(any(TacoOrder.class));
   }
 }

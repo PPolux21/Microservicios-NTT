@@ -23,6 +23,10 @@ import tacos.TacoOrder.OrderItem;
 import tacos.web.api.mapper.ApiMapper;
 import tacos.web.api.mapper.ApiMapper.OrderCreateCommand;
 import tacos.web.api.mapper.ApiMapper.OrderItemCommand;
+import tacos.web.api.mapper.ApiMapper.OrderQuote;
+import tacos.web.api.mapper.ApiMapper.OrderQuoteCommand;
+import tacos.web.api.coupon.CouponService;
+import tacos.web.api.coupon.CouponService.CouponApplication;
 import tacos.web.api.error.ApiExceptionHandler.ApiException;
 import tacos.data.IngredientRepository;
 import tacos.data.OrderRepository;
@@ -43,6 +47,7 @@ public class OrderService {
   private UserRepository userRepo;
   private PaymentMethodRepository paymentMethodRepo;
   private IngredientRepository ingredientRepo;
+  private CouponService couponService;
   private int maxQuantity = 10;
 
   public OrderService(
@@ -51,7 +56,8 @@ public class OrderService {
       EmailOrderService emailOrderService,
       UserRepository userRepo,
       PaymentMethodRepository paymentMethodRepo,
-      IngredientRepository ingredientRepo) {
+      IngredientRepository ingredientRepo,
+      CouponService couponService) {
 
     this.repo = repo;
     this.orderMessages = orderMessages;
@@ -59,6 +65,7 @@ public class OrderService {
     this.userRepo = userRepo;
     this.paymentMethodRepo = paymentMethodRepo;
     this.ingredientRepo = ingredientRepo;
+    this.couponService = couponService;
   }
 
   @Value("${tacocloud.orders.max-quantity:10}")
@@ -104,8 +111,45 @@ public class OrderService {
 
   private Mono<TacoOrder> priceOrder(OrderCreateCommand command,User user) {
 
-    List<OrderItemCommand> requestedItems = command.getItems() != null
-        ? command.getItems()
+    return priceItems(command.getItems())
+        .flatMap(items -> {
+          BigDecimal subtotal = subtotal(items);
+          CouponApplication coupon = couponService.evaluate(
+              command.getCouponCode(),subtotal);
+
+          if (!coupon.isApplicable()) {
+            return Mono.error(ApiException.unprocessable(
+                "COUPON_NOT_APPLICABLE","Coupon is not applicable."));
+          }
+
+          TacoOrder order = ApiMapper.toEntity(command);
+          order.setUser(user);
+          order.setPlacedAt(new Date());
+          order.setCurrency(ORDER_CURRENCY);
+          items.forEach(order::addItem);
+          order.setSubtotal(coupon.getSubtotal());
+          order.setAppliedCouponCode(
+              coupon.isApplied() ? coupon.getNormalizedCode() : null);
+          order.setDiscountAmount(coupon.getDiscount());
+          order.setTotal(coupon.getTotal());
+          return Mono.just(order);
+        });
+  }
+
+  public Mono<OrderQuote> quote(OrderQuoteCommand command) {
+
+    return priceItems(command.getItems())
+        .map(this::subtotal)
+        .map(value -> couponService.evaluate(command.getCouponCode(),value))
+        .map(coupon -> new OrderQuote(
+            coupon.isApplicable(),coupon.getSubtotal(),coupon.getDiscount(),
+            coupon.getTotal(),ORDER_CURRENCY));
+  }
+
+  private Mono<List<OrderItem>> priceItems(List<OrderItemCommand> commandItems) {
+
+    List<OrderItemCommand> requestedItems = commandItems != null
+        ? commandItems
         : Collections.emptyList();
 
     if (requestedItems.isEmpty()) {
@@ -115,21 +159,14 @@ public class OrderService {
 
     return Flux.fromIterable(requestedItems)
         .concatMap(this::priceItem)
-        .collectList()
-        .map(items -> {
-          TacoOrder order = ApiMapper.toEntity(command);
-          order.setUser(user);
-          order.setPlacedAt(new Date());
-          order.setCurrency(ORDER_CURRENCY);
+        .collectList();
+  }
 
-          BigDecimal total = BigDecimal.ZERO.setScale(MONEY_SCALE);
-          for (OrderItem item : items) {
-            order.addItem(item);
-            total = total.add(item.getSubtotal());
-          }
-          order.setTotal(total.setScale(MONEY_SCALE,MONEY_ROUNDING));
-          return order;
-        });
+  private BigDecimal subtotal(List<OrderItem> items) {
+    return items.stream()
+        .map(OrderItem::getSubtotal)
+        .reduce(BigDecimal.ZERO,BigDecimal::add)
+        .setScale(MONEY_SCALE,MONEY_ROUNDING);
   }
 
   private Mono<OrderItem> priceItem(OrderItemCommand itemCommand) {

@@ -132,11 +132,29 @@ public final class ApiDtos {
     @NotBlank
     private String paymentMethodId;
 
+    @Size(max=50,message="couponCode must have at most 50 characters")
+    private String couponCode;
+
     @Valid
     @NotNull(message="items are required")
     @Size(min=1,max=20,message="order must contain between 1 and 20 items")
     private List<OrderItemRequest> items =
         new ArrayList<>();
+  }
+
+
+  @Data
+  @NoArgsConstructor
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  public static class OrderQuoteRequest {
+
+    @Valid
+    @NotNull(message="items are required")
+    @Size(min=1,max=20,message="quote must contain between 1 and 20 items")
+    private List<OrderItemRequest> items = new ArrayList<>();
+
+    @Size(max=50,message="couponCode must have at most 50 characters")
+    private String couponCode;
   }
 
 
@@ -187,6 +205,21 @@ public final class ApiDtos {
 
     private List<OrderTacoResponse> tacos;
     private List<OrderItemResponse> items;
+    private BigDecimal subtotal;
+    private String appliedCouponCode;
+    private BigDecimal discountAmount;
+    private BigDecimal total;
+    private String currency;
+  }
+
+
+  @Data
+  @AllArgsConstructor
+  public static class OrderQuoteResponse {
+
+    private boolean valid;
+    private BigDecimal subtotal;
+    private BigDecimal discount;
     private BigDecimal total;
     private String currency;
   }

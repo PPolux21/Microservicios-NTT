@@ -14,6 +14,9 @@ import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -49,6 +52,11 @@ import tacos.web.api.mapper.ApiMapper;
 import tacos.web.api.mapper.ApiMapper.OrderCreateCommand;
 import tacos.web.api.mapper.ApiMapper.OrderItemCommand;
 import tacos.web.api.mapper.ApiMapper.TacoCommand;
+import tacos.web.api.mapper.ApiMapper.OrderQuoteCommand;
+import tacos.web.api.coupon.CouponProperties;
+import tacos.web.api.coupon.CouponProperties.CouponRule;
+import tacos.web.api.coupon.CouponProperties.CouponType;
+import tacos.web.api.coupon.CouponService;
 
 public class OrderServiceTest {
 
@@ -60,6 +68,7 @@ public class OrderServiceTest {
   private UserRepository userRepo;
   private PaymentMethodRepository paymentMethodRepo;
   private IngredientRepository ingredientRepo;
+  private CouponProperties couponProperties;
 
   @BeforeEach
   public void setup() {
@@ -74,9 +83,14 @@ public class OrderServiceTest {
     
     paymentMethodRepo = Mockito.mock(PaymentMethodRepository.class);
     ingredientRepo = Mockito.mock(IngredientRepository.class);
+    couponProperties = new CouponProperties();
+    CouponService couponService = new CouponService(
+        couponProperties,
+        Clock.fixed(Instant.parse("2026-06-15T12:00:00Z"),ZoneOffset.UTC));
 
     service = new OrderService(
-        repo,orderMessages,emailOrderService,userRepo,paymentMethodRepo,ingredientRepo);
+        repo,orderMessages,emailOrderService,userRepo,paymentMethodRepo,
+        ingredientRepo,couponService);
   }
 
 
@@ -469,6 +483,85 @@ public class OrderServiceTest {
   }
 
   @Test
+  public void shouldPersistCouponSnapshotCalculatedByServer() {
+
+    Authentication authentication = authenticatedUserWithPayment();
+    CouponRule rule = percentageRule("25");
+    couponProperties.getRules().put("PROMO25",rule);
+
+    when(ingredientRepo.findById("FLTO"))
+        .thenReturn(Mono.just(catalogIngredient("FLTO","10.00")));
+    when(repo.save(any(TacoOrder.class)))
+        .thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
+
+    OrderCreateCommand command = orderCommand(2,"FLTO");
+    command.setCouponCode(" promo25 ");
+
+    StepVerifier.create(service.createOrder(command,authentication))
+        .assertNext(order -> {
+          rule.setValue(new BigDecimal("90"));
+          assertEquals(new BigDecimal("20.00"),order.getSubtotal());
+          assertEquals("PROMO25",order.getAppliedCouponCode());
+          assertEquals(new BigDecimal("5.00"),order.getDiscountAmount());
+          assertEquals(new BigDecimal("15.00"),order.getTotal());
+        })
+        .verifyComplete();
+  }
+
+  @Test
+  public void shouldQuoteWithoutPersistencePublicationOrInventoryMutation() {
+
+    couponProperties.getRules().put("PROMO25",percentageRule("25"));
+    when(ingredientRepo.findById("FLTO"))
+        .thenReturn(Mono.just(catalogIngredient("FLTO","10.00")));
+
+    OrderQuoteCommand command = new OrderQuoteCommand(
+        Collections.singletonList(orderItem("Quote Taco",2,"FLTO")),
+        "promo25");
+
+    StepVerifier.create(service.quote(command))
+        .assertNext(quote -> {
+          assertTrue(quote.isValid());
+          assertEquals(new BigDecimal("20.00"),quote.getSubtotal());
+          assertEquals(new BigDecimal("5.00"),quote.getDiscount());
+          assertEquals(new BigDecimal("15.00"),quote.getTotal());
+          assertEquals("MXN",quote.getCurrency());
+        })
+        .verifyComplete();
+
+    verify(repo,never()).save(any(TacoOrder.class));
+    verify(orderMessages,never()).sendOrder(any(TacoOrder.class));
+    verify(paymentMethodRepo,never()).findById(any(String.class));
+    verify(userRepo,never()).findByUsername(any(String.class));
+  }
+
+  @Test
+  public void shouldUseSameGenericErrorForUnknownAndExpiredCoupons() {
+
+    Authentication authentication = authenticatedUserWithPayment();
+    CouponRule expired = percentageRule("10");
+    expired.setValidUntil(java.time.LocalDate.of(2026,6,14));
+    couponProperties.getRules().put("EXPIRED",expired);
+    when(ingredientRepo.findById("FLTO"))
+        .thenReturn(Mono.just(catalogIngredient("FLTO","10.00")));
+
+    for (String code : Arrays.asList("UNKNOWN","EXPIRED")) {
+      OrderCreateCommand command = orderCommand(1,"FLTO");
+      command.setCouponCode(code);
+      StepVerifier.create(service.createOrder(command,authentication))
+          .expectErrorSatisfies(error -> {
+            assertTrue(error instanceof ApiException);
+            assertEquals("COUPON_NOT_APPLICABLE",
+                ((ApiException) error).getCode());
+          })
+          .verify();
+    }
+
+    verify(repo,never()).save(any(TacoOrder.class));
+    verify(orderMessages,never()).sendOrder(any(TacoOrder.class));
+  }
+
+  @Test
   public void shouldRejectZeroNegativeAndExcessiveQuantities() {
 
     Authentication authentication = authenticatedUserWithPayment();
@@ -520,7 +613,14 @@ public class OrderServiceTest {
     return new OrderCreateCommand(
         "Jose","Street","City","AG","20000","PAYMENT-1",
         Collections.singletonList(
-            orderItem("Synthetic Taco",quantity,ingredientIds)));
+            orderItem("Synthetic Taco",quantity,ingredientIds)),null);
+  }
+
+  private CouponRule percentageRule(String value) {
+    CouponRule rule = new CouponRule();
+    rule.setType(CouponType.PERCENTAGE);
+    rule.setValue(new BigDecimal(value));
+    return rule;
   }
 
   private OrderItemCommand orderItem(

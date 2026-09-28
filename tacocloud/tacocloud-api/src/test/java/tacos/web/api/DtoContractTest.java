@@ -150,6 +150,10 @@ public class DtoContractTest {
       + "\"status\":\"PREPARING\","
       + "\"userId\":\"OTHER-USER\","
       + "\"total\":\"0.01\","
+      + "\"discountAmount\":\"999.99\","
+      + "\"discountedTotal\":\"0.00\","
+      + "\"couponCode\":\" PROMO10 \","
+      + "\"couponCodes\":[\"PROMO10\",\"SAVE50\"],"
       + "\"items\":[{"
       + "\"quantity\":2,"
       + "\"unitPriceAtPurchase\":\"0.01\","
@@ -180,6 +184,12 @@ public class DtoContractTest {
 
     assertEquals(0,new java.math.BigDecimal("0.00").compareTo(order.getTotal()));
     assertEquals(2,command.getItems().get(0).getQuantity());
+    assertEquals(" PROMO10 ",command.getCouponCode());
+    assertFalse(Arrays.stream(OrderCreateRequest.class.getDeclaredFields())
+        .anyMatch(field -> "couponCodes".equals(field.getName())));
+    assertEquals(0,new java.math.BigDecimal("0.00")
+        .compareTo(order.getDiscountAmount()));
+    assertNull(order.getAppliedCouponCode());
 
     assertTrue(order.getStatus() == null || order.getStatus() == TacoOrder.Status.CREATED);
   }

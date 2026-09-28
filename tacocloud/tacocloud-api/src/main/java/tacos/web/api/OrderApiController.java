@@ -22,6 +22,8 @@ import reactor.core.publisher.Mono;
 import tacos.TacoOrder;
 import tacos.web.api.dto.ApiDtos.OrderCreateRequest;
 import tacos.web.api.dto.ApiDtos.OrderResponse;
+import tacos.web.api.dto.ApiDtos.OrderQuoteRequest;
+import tacos.web.api.dto.ApiDtos.OrderQuoteResponse;
 import tacos.web.api.error.ApiExceptionHandler.ApiException;
 import tacos.web.api.mapper.ApiMapper;
 import tacos.web.api.mapper.ApiMapper.OrderCreateCommand;
@@ -70,6 +72,13 @@ public class OrderApiController {
     return orderService
       .createOrder(command,authentication)
       .map(ApiMapper::toResponse);
+  }
+
+  @PostMapping(path="/quote",consumes="application/json")
+  public Mono<OrderQuoteResponse> quote(
+      @Valid @RequestBody OrderQuoteRequest request) {
+    return orderService.quote(ApiMapper.toCommand(request))
+        .map(ApiMapper::toResponse);
   }
 
   @PostMapping(path="fromEmail", consumes="application/json")

@@ -193,7 +193,7 @@ public class OrderApiController {
             ApiException.conflict("ORDER_ALREADY_PREPARING","An order being prepared cannot be deleted."));
         }
 
-        return repo.deleteById(orderId)
+        return orderService.cancelOrder(order)
             .thenReturn(ResponseEntity.noContent().<Void>build());
       });
   }

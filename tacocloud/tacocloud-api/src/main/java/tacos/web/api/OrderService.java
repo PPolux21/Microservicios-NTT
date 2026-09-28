@@ -5,6 +5,7 @@ import java.math.RoundingMode;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -48,6 +49,7 @@ public class OrderService {
   private PaymentMethodRepository paymentMethodRepo;
   private IngredientRepository ingredientRepo;
   private CouponService couponService;
+  private InventoryService inventoryService;
   private int maxQuantity = 10;
 
   public OrderService(
@@ -57,7 +59,8 @@ public class OrderService {
       UserRepository userRepo,
       PaymentMethodRepository paymentMethodRepo,
       IngredientRepository ingredientRepo,
-      CouponService couponService) {
+      CouponService couponService,
+      InventoryService inventoryService) {
 
     this.repo = repo;
     this.orderMessages = orderMessages;
@@ -66,6 +69,7 @@ public class OrderService {
     this.paymentMethodRepo = paymentMethodRepo;
     this.ingredientRepo = ingredientRepo;
     this.couponService = couponService;
+    this.inventoryService = inventoryService;
   }
 
   @Value("${tacocloud.orders.max-quantity:10}")
@@ -102,11 +106,14 @@ public class OrderService {
               Mono.error(
                 new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,"Valid tokenized payment method required")))
             .flatMap(paymentMethod -> priceOrder(command,user))
-            .flatMap(order -> repo
-              .save(order)
-              .flatMap(savedOrder ->
-                Mono.fromRunnable(() -> orderMessages.sendOrder(savedOrder))
-                .thenReturn(savedOrder))));
+            .flatMap(order -> inventoryService.reserve(order)
+                .flatMap(reservation -> repo.save(order)
+                    .onErrorResume(saveError -> inventoryService
+                        .release(reservation.getId())
+                        .then(Mono.error(saveError))))
+                .flatMap(savedOrder ->
+                  Mono.fromRunnable(() -> orderMessages.sendOrder(savedOrder))
+                  .thenReturn(savedOrder))));
   }
 
   private Mono<TacoOrder> priceOrder(OrderCreateCommand command,User user) {
@@ -123,6 +130,7 @@ public class OrderService {
           }
 
           TacoOrder order = ApiMapper.toEntity(command);
+          order.setId(UUID.randomUUID().toString());
           order.setUser(user);
           order.setPlacedAt(new Date());
           order.setCurrency(ORDER_CURRENCY);
@@ -282,6 +290,17 @@ public class OrderService {
         && order.getUser()
             .getUsername()
             .equals(authentication.getName());
+  }
+
+  public Mono<Void> cancelOrder(TacoOrder order) {
+
+    if (order == null || order.getId() == null) {
+      return Mono.error(ApiException.notFound(
+          "ORDER_NOT_FOUND","Order does not exist."));
+    }
+
+    return inventoryService.release(order.getId())
+        .then(repo.deleteById(order.getId()));
   }
 
   private boolean hasRole(Authentication authentication,

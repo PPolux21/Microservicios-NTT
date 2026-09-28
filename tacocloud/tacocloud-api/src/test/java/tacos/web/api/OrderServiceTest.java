@@ -38,6 +38,8 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 import tacos.Ingredient;
+import tacos.InventoryReservation;
+import tacos.InventoryReservation.Status;
 import tacos.PaymentMethod;
 import tacos.TacoOrder;
 import tacos.User;
@@ -69,6 +71,7 @@ public class OrderServiceTest {
   private PaymentMethodRepository paymentMethodRepo;
   private IngredientRepository ingredientRepo;
   private CouponProperties couponProperties;
+  private InventoryService inventoryService;
 
   @BeforeEach
   public void setup() {
@@ -87,10 +90,18 @@ public class OrderServiceTest {
     CouponService couponService = new CouponService(
         couponProperties,
         Clock.fixed(Instant.parse("2026-06-15T12:00:00Z"),ZoneOffset.UTC));
+    inventoryService = Mockito.mock(InventoryService.class);
+    when(inventoryService.reserve(any(TacoOrder.class)))
+        .thenAnswer(invocation -> {
+          TacoOrder order = invocation.getArgument(0);
+          return Mono.just(new InventoryReservation(
+              order.getId(),order.getId(),Status.RESERVED,
+              Collections.emptyList()));
+        });
 
     service = new OrderService(
         repo,orderMessages,emailOrderService,userRepo,paymentMethodRepo,
-        ingredientRepo,couponService);
+        ingredientRepo,couponService,inventoryService);
   }
 
 
@@ -533,6 +544,7 @@ public class OrderServiceTest {
     verify(orderMessages,never()).sendOrder(any(TacoOrder.class));
     verify(paymentMethodRepo,never()).findById(any(String.class));
     verify(userRepo,never()).findByUsername(any(String.class));
+    verify(inventoryService,never()).reserve(any(TacoOrder.class));
   }
 
   @Test
@@ -581,6 +593,74 @@ public class OrderServiceTest {
 
     verify(ingredientRepo,never()).findById(any(String.class));
     verify(repo,never()).save(any(TacoOrder.class));
+  }
+
+  @Test
+  public void shouldReleaseReservationWhenOrderSaveFails() {
+
+    Authentication authentication = authenticatedUserWithPayment();
+    when(ingredientRepo.findById("FLTO"))
+        .thenReturn(Mono.just(catalogIngredient("FLTO","10.00")));
+    when(repo.save(any(TacoOrder.class)))
+        .thenReturn(Mono.error(new RuntimeException("synthetic save failure")));
+    when(inventoryService.release(any(String.class))).thenReturn(Mono.empty());
+
+    StepVerifier.create(service.createOrder(orderCommand(2,"FLTO"),authentication))
+        .expectErrorMessage("synthetic save failure")
+        .verify();
+
+    ArgumentCaptor<TacoOrder> draft = ArgumentCaptor.forClass(TacoOrder.class);
+    verify(inventoryService).reserve(draft.capture());
+    verify(inventoryService).release(draft.getValue().getId());
+    verify(orderMessages,never()).sendOrder(any(TacoOrder.class));
+
+    org.mockito.InOrder sequence = Mockito.inOrder(inventoryService,repo);
+    sequence.verify(inventoryService).reserve(any(TacoOrder.class));
+    sequence.verify(repo).save(any(TacoOrder.class));
+    sequence.verify(inventoryService).release(draft.getValue().getId());
+  }
+
+  @Test
+  public void shouldReservePhysicalQuantityIndependentOfCoupon() {
+
+    Authentication authentication = authenticatedUserWithPayment();
+    couponProperties.getRules().put("HALF",percentageRule("50"));
+    when(ingredientRepo.findById("FLTO"))
+        .thenReturn(Mono.just(catalogIngredient("FLTO","10.00")));
+    when(repo.save(any(TacoOrder.class)))
+        .thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
+
+    OrderCreateCommand command = orderCommand(3,"FLTO");
+    command.setCouponCode("HALF");
+
+    StepVerifier.create(service.createOrder(command,authentication))
+        .assertNext(order -> assertEquals(new BigDecimal("15.00"),order.getTotal()))
+        .verifyComplete();
+
+    ArgumentCaptor<TacoOrder> draft = ArgumentCaptor.forClass(TacoOrder.class);
+    verify(inventoryService).reserve(draft.capture());
+    assertEquals(3,draft.getValue().getItems().get(0).getQuantity());
+
+    org.mockito.InOrder sequence = Mockito.inOrder(
+        inventoryService,repo,orderMessages);
+    sequence.verify(inventoryService).reserve(any(TacoOrder.class));
+    sequence.verify(repo).save(any(TacoOrder.class));
+    sequence.verify(orderMessages).sendOrder(any(TacoOrder.class));
+  }
+
+  @Test
+  public void shouldReleaseInventoryBeforeDeletingCancelableOrder() {
+
+    TacoOrder order = new TacoOrder();
+    order.setId("ORDER-1");
+    when(inventoryService.release("ORDER-1")).thenReturn(Mono.empty());
+    when(repo.deleteById("ORDER-1")).thenReturn(Mono.empty());
+
+    StepVerifier.create(service.cancelOrder(order)).verifyComplete();
+
+    org.mockito.InOrder sequence = Mockito.inOrder(inventoryService,repo);
+    sequence.verify(inventoryService).release("ORDER-1");
+    sequence.verify(repo).deleteById("ORDER-1");
   }
 
   private Authentication authenticatedUserWithPayment() {

@@ -251,14 +251,11 @@ public class OrderApiControllerTest {
 
     User owner = org.mockito.Mockito.mock(User.class);
 
-    when(owner.getUsername()).thenReturn("jose");
-
     User otherUser = org.mockito.Mockito.mock(User.class);
-
-    when(otherUser.getUsername()).thenReturn("otherUser");
 
     TacoOrder existingOrder =new TacoOrder();
 
+    existingOrder.setId("ORDER-1");
     existingOrder.setUser(owner);
     existingOrder.setStatus(TacoOrder.Status.CREATED);
 
@@ -269,14 +266,10 @@ public class OrderApiControllerTest {
 
     Authentication authentication = org.mockito.Mockito.mock(Authentication.class);
 
-    when(authentication.getName()).thenReturn("jose");
-
-    when(authentication.getAuthorities()).thenReturn(Collections.emptyList());
-
     // La orden existe y pertenece al usuario.
     when(repo.findById("ORDER-1")).thenReturn(Mono.just(existingOrder));
-
-    when(repo.deleteById("ORDER-1")).thenReturn(Mono.empty());
+    when(orderService.canAccessOrder(existingOrder,authentication)).thenReturn(true);
+    when(orderService.cancelOrder(existingOrder)).thenReturn(Mono.empty());
 
     StepVerifier.create(
         controller.deleteOrder(
@@ -293,9 +286,11 @@ public class OrderApiControllerTest {
       controller.deleteOrder(
         "ORDER-MISSING",
         authentication))
-      .assertNext(response ->
-        assertEquals(HttpStatus.NOT_FOUND,response.getStatusCode()))
-      .verifyComplete();
+      .expectErrorSatisfies(error -> {
+        assertTrue(error instanceof ApiException);
+        assertEquals(HttpStatus.NOT_FOUND,((ApiException) error).getStatus());
+      })
+      .verify();
 
 
     // La orden existe pero pertenece a otro usuario.
@@ -306,22 +301,19 @@ public class OrderApiControllerTest {
         controller.deleteOrder(
             "ORDER-FOREIGN",
             authentication))
-        .assertNext(response ->
-            assertEquals(HttpStatus.FORBIDDEN,response.getStatusCode()))
-        .verifyComplete();
+        .expectErrorSatisfies(error -> {
+          assertTrue(error instanceof ApiException);
+          assertEquals(HttpStatus.FORBIDDEN,((ApiException) error).getStatus());
+        })
+        .verify();
 
-    verify(repo).deleteById("ORDER-1");
-
-    verify(repo, never()).deleteById("ORDER-MISSING");
-
-    verify(repo, never()).deleteById("ORDER-FOREIGN");
+    verify(orderService).cancelOrder(existingOrder);
+    verify(orderService,never()).cancelOrder(foreignOrder);
   }
   
   @Test
   public void shouldNotPhysicallyDeletePreparingOrder() {
     User owner =org.mockito.Mockito.mock(User.class);
-
-    when(owner.getUsername()).thenReturn("jose");
 
     TacoOrder order = new TacoOrder();
 
@@ -329,24 +321,20 @@ public class OrderApiControllerTest {
 
     Authentication authentication = org.mockito.Mockito.mock(Authentication.class);
 
-    when(authentication.getName()).thenReturn("jose");
-
-    when(authentication.getAuthorities())
-        .thenReturn(Collections.emptyList());
-
     when(repo.findById("ORDER-PREPARING")).thenReturn(Mono.just(order));
+    when(orderService.canAccessOrder(order,authentication)).thenReturn(true);
 
     StepVerifier.create(
         controller.deleteOrder(
             "ORDER-PREPARING",
             authentication))
-        .assertNext(response ->
-            assertEquals(
-                HttpStatus.CONFLICT,
-                response.getStatusCode()))
-        .verifyComplete();
+        .expectErrorSatisfies(error -> {
+          assertTrue(error instanceof ApiException);
+          assertEquals(HttpStatus.CONFLICT,((ApiException) error).getStatus());
+        })
+        .verify();
 
-    verify(repo, never()).deleteById(anyString());
+    verify(orderService,never()).cancelOrder(order);
   }
 
   @Test

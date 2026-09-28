@@ -23,7 +23,7 @@ public class PaymentMethod {
   private final User user;
 
   @JsonIgnore 
-  @ToString .Exclude
+  @ToString.Exclude
   private String paymentToken;
   private String brand;
 

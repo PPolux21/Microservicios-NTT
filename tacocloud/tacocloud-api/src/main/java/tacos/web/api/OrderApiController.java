@@ -189,26 +189,4 @@ public class OrderApiController {
       });
   }
 
-  private boolean orderService.canAccessOrder(TacoOrder order,Authentication authentication) {
-
-    if (authentication == null) {
-      return false;
-    }
-
-    boolean isAdmin = authentication.getAuthorities()
-                                    .stream()
-                                    .anyMatch(authority ->
-                                        "ROLE_ADMIN".equals(
-                                            authority.getAuthority()));
-
-    if (isAdmin) {
-      return true;
-    }
-
-    return order.getUser() != null
-      && order.getUser().getUsername() != null
-      && order.getUser()
-        .getUsername()
-        .equals(authentication.getName());
-  }
 }

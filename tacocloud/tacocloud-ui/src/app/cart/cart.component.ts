@@ -14,11 +14,12 @@ export class CartComponent implements OnInit {
   model = {
     deliveryName: '',
     deliveryStreet: '',
+    deliveryCity: '',
     deliveryState: '',
     deliveryZip: '',
-    ccNumber: '',
-    ccExpiration: '',
-    ccCVV: '',
+    cardNumber: '',
+    expiration: '',
+    cvv: '',
     tacos: []
   };
 
@@ -42,12 +43,38 @@ export class CartComponent implements OnInit {
       this.model.tacos.push(cartItem.taco);
     });
 
-    this.httpClient.post(
-        'http://localhost:8080/api/orders',
-        this.model, {
+    const tokenizationRequest = {
+      cardNumber: this.model.cardNumber,
+      expiration: this.model.expiration,
+      cvv: this.model.cvv
+    };
+
+    this.httpClient.post<any>(
+        'http://localhost:8080/api/payment-methods/tokenize',
+        tokenizationRequest, {
             headers: new HttpHeaders().set('Content-type', 'application/json')
                     .set('Accept', 'application/json'),
-        }).subscribe(r => this.cart.emptyCart());
+        }).subscribe(paymentMethod => {
+          const orderRequest = {
+            deliveryName: this.model.deliveryName,
+            deliveryStreet: this.model.deliveryStreet,
+            deliveryCity: this.model.deliveryCity,
+            deliveryState: this.model.deliveryState,
+            deliveryZip: this.model.deliveryZip,
+            paymentMethodId: paymentMethod.id,
+            tacos: this.model.tacos
+          };
+
+          this.model.cardNumber = '';
+          this.model.cvv = '';
+
+          this.httpClient.post(
+              'http://localhost:8080/api/orders',
+              orderRequest, {
+                headers: new HttpHeaders().set('Content-type', 'application/json')
+                        .set('Accept', 'application/json'),
+              }).subscribe(r => this.cart.emptyCart());
+        });
 
     // TODO: Do something after this...navigate to a thank you page or something
   }

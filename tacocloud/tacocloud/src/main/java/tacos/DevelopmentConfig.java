@@ -43,7 +43,13 @@ public class DevelopmentConfig {
               "Craig Walls", "123 North Street", "Cross Roads", "TX", 
               "76227", "123-123-1234", "craig@habuma.com"))
           .subscribe(user -> {
-              paymentMethodRepo.save(new PaymentMethod(user, "4111111111111111", "321", "10/25")).subscribe();
+              PaymentMethod paymentMethod = new PaymentMethod(user);
+              paymentMethod.setId(user.getId());
+              paymentMethod.setPaymentToken("tok_fake_development");
+              paymentMethod.setBrand("VISA");
+              paymentMethod.setLast4("1111");
+              paymentMethod.setExpiration("12/30");
+              paymentMethodRepo.save(paymentMethod).subscribe();
           });        
         
         Taco taco1 = new Taco();

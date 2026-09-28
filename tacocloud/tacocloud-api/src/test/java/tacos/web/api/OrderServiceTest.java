@@ -223,7 +223,7 @@ public class OrderServiceTest {
     doReturn(
       Collections.singletonList(
           new SimpleGrantedAuthority(
-              "ROLE_ADMIN")))
+              "ROLE_USER")))
       .when(userAuth)
       .getAuthorities();
 
@@ -283,7 +283,6 @@ public class OrderServiceTest {
     PaymentMethod paymentMethod = new PaymentMethod(user);
 
     paymentMethod.setId("PAYMENT-1");
-    paymentMethod.setId("USER-1");
     paymentMethod.setPaymentToken("tok_fake_test");
     paymentMethod.setBrand("VISA");
     paymentMethod.setLast4("1111");
@@ -336,5 +335,40 @@ public class OrderServiceTest {
     assertFalse(eventJson.contains("cvv"));
     assertFalse(eventJson.contains("last4"));
     assertFalse(eventJson.contains("brand"));
+  }
+
+  @Test
+  public void shouldRejectPaymentMethodOwnedByAnotherUser() {
+
+    User authenticatedUser = Mockito.mock(User.class);
+    when(authenticatedUser.getId()).thenReturn("USER-1");
+
+    User otherUser = Mockito.mock(User.class);
+    when(otherUser.getId()).thenReturn("USER-2");
+
+    Authentication authentication = Mockito.mock(Authentication.class);
+    when(authentication.getName()).thenReturn("jose");
+    when(userRepo.findByUsername("jose"))
+        .thenReturn(Mono.just(authenticatedUser));
+
+    PaymentMethod foreignMethod = new PaymentMethod(otherUser);
+    foreignMethod.setId("PAYMENT-1");
+    foreignMethod.setPaymentToken("tok_fake_other_user");
+
+    when(paymentMethodRepo.findById("PAYMENT-1"))
+        .thenReturn(Mono.just(foreignMethod));
+
+    OrderCreateCommand command = Mockito.mock(OrderCreateCommand.class);
+    when(command.getPaymentMethodId()).thenReturn("PAYMENT-1");
+
+    StepVerifier.create(service.createOrder(command,authentication))
+        .expectErrorMatches(error ->
+            error instanceof org.springframework.web.server.ResponseStatusException
+              && ((org.springframework.web.server.ResponseStatusException) error)
+                  .getStatus() == org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY)
+        .verify();
+
+    verify(repo,never()).save(any(TacoOrder.class));
+    verify(orderMessages,never()).sendOrder(any(TacoOrder.class));
   }
 }

@@ -61,7 +61,9 @@ public class OrderService {
         paymentMethodRepo
             .findById(command.getPaymentMethodId())
             .filter(method ->
-              user.getId().equals(method.getId()))
+              user.getId() != null
+                && method.getUser() != null
+                && user.getId().equals(method.getUser().getId()))
             .filter(method ->
               method.getPaymentToken() != null && !method
                 .getPaymentToken()

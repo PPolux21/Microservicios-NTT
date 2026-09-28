@@ -60,27 +60,7 @@
             th:errors="*{deliveryZip}">Zip Error</span>
       <br/>
       
-      <h3>Here's how I'll pay...</h3>
-      <label for="ccNumber">Credit Card #: </label>
-      <input type="text" th:field="*{ccNumber}"/>
-      <span class="validationError"
-            th:if="${#fields.hasErrors('ccNumber')}" 
-            th:errors="*{ccNumber}">CC Num Error</span>
-      <br/>
-      
-      <label for="ccExpiration">Expiration: </label>
-      <input type="text" th:field="*{ccExpiration}"/>
-      <span class="validationError"
-            th:if="${#fields.hasErrors('ccExpiration')}" 
-            th:errors="*{ccExpiration}">CC Num Error</span>
-      <br/>
-      
-      <label for="ccCVV">CVV: </label>
-      <input type="text" th:field="*{ccCVV}"/>
-      <span class="validationError"
-            th:if="${#fields.hasErrors('ccCVV')}" 
-            th:errors="*{ccCVV}">CC Num Error</span>
-      <br/>
+      <p>Payment details are managed through a previously tokenized payment method.</p>
       
       <input type="submit" value="Submit order"/>
     </form>

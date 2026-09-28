@@ -2,6 +2,7 @@ package tacos.web.api;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import static org.mockito.ArgumentMatchers.any;
 
@@ -10,6 +11,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
+
+import java.lang.reflect.Field;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import org.mockito.ArgumentCaptor;
 
@@ -101,5 +107,18 @@ public class PaymentMethodControllerTest {
     assertFalse(persisted.getPaymentToken().contains("4111111111111111"));
     assertEquals("VISA",persisted.getBrand());
     assertEquals("1111",persisted.getLast4());
+
+    List<String> fieldNames = Arrays.stream(PaymentMethod.class.getDeclaredFields())
+        .map(Field::getName)
+        .collect(Collectors.toList());
+
+    assertFalse(fieldNames.contains("cardNumber"));
+    assertFalse(fieldNames.contains("ccNumber"));
+    assertFalse(fieldNames.contains("cvv"));
+    assertFalse(fieldNames.contains("ccCVV"));
+    assertTrue(persisted.toString().contains("last4=1111"));
+    assertFalse(persisted.toString().contains(persisted.getPaymentToken()));
+    assertFalse(persisted.toString().contains("4111111111111111"));
+    assertFalse(persisted.toString().contains("123"));
   }
 }

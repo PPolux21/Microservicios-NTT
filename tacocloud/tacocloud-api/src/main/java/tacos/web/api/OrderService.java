@@ -1,7 +1,12 @@
 package tacos.web.api;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.Collections;
 import java.util.Date;
+import java.util.List;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.data.domain.Pageable;
@@ -10,11 +15,16 @@ import org.springframework.security.core.Authentication;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import tacos.Ingredient;
+import tacos.Taco;
 import tacos.User;
 import tacos.TacoOrder;
-import tacos.PaymentMethod;
+import tacos.TacoOrder.OrderItem;
 import tacos.web.api.mapper.ApiMapper;
 import tacos.web.api.mapper.ApiMapper.OrderCreateCommand;
+import tacos.web.api.mapper.ApiMapper.OrderItemCommand;
+import tacos.web.api.error.ApiExceptionHandler.ApiException;
+import tacos.data.IngredientRepository;
 import tacos.data.OrderRepository;
 import tacos.data.PaymentMethodRepository;
 import tacos.data.UserRepository;
@@ -23,24 +33,37 @@ import tacos.messaging.OrderMessagingService;
 @Service
 public class OrderService {
 
+  private static final int MONEY_SCALE = 2;
+  private static final RoundingMode MONEY_ROUNDING = RoundingMode.HALF_UP;
+  private static final String ORDER_CURRENCY = "MXN";
+
   private OrderRepository repo;
   private OrderMessagingService orderMessages;
   private EmailOrderService emailOrderService;
   private UserRepository userRepo;
   private PaymentMethodRepository paymentMethodRepo;
+  private IngredientRepository ingredientRepo;
+  private int maxQuantity = 10;
 
   public OrderService(
       OrderRepository repo,
       OrderMessagingService orderMessages,
       EmailOrderService emailOrderService,
       UserRepository userRepo,
-      PaymentMethodRepository paymentMethodRepo) {
+      PaymentMethodRepository paymentMethodRepo,
+      IngredientRepository ingredientRepo) {
 
     this.repo = repo;
     this.orderMessages = orderMessages;
     this.emailOrderService = emailOrderService;
     this.userRepo = userRepo;
     this.paymentMethodRepo = paymentMethodRepo;
+    this.ingredientRepo = ingredientRepo;
+  }
+
+  @Value("${tacocloud.orders.max-quantity:10}")
+  void configureMaxQuantity(int maxQuantity) {
+    this.maxQuantity = maxQuantity;
   }
 
   public Mono<TacoOrder> createOrder(OrderCreateCommand command, 
@@ -71,17 +94,101 @@ public class OrderService {
             .switchIfEmpty(
               Mono.error(
                 new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,"Valid tokenized payment method required")))
-            .flatMap(paymentMethod -> {
-              TacoOrder order = ApiMapper.toEntity(command);
-              order.setUser(user);
-              order.setPlacedAt(new Date());
+            .flatMap(paymentMethod -> priceOrder(command,user))
+            .flatMap(order -> repo
+              .save(order)
+              .flatMap(savedOrder ->
+                Mono.fromRunnable(() -> orderMessages.sendOrder(savedOrder))
+                .thenReturn(savedOrder))));
+  }
 
-              return repo
-                .save(order)
-                .flatMap(savedOrder ->
-                  Mono.fromRunnable(() -> orderMessages.sendOrder(savedOrder))
-                  .thenReturn(savedOrder));
-            }));
+  private Mono<TacoOrder> priceOrder(OrderCreateCommand command,User user) {
+
+    List<OrderItemCommand> requestedItems = command.getItems() != null
+        ? command.getItems()
+        : Collections.emptyList();
+
+    if (requestedItems.isEmpty()) {
+      return Mono.error(
+          ApiException.unprocessable("ORDER_ITEMS_REQUIRED","Order must contain at least one item."));
+    }
+
+    return Flux.fromIterable(requestedItems)
+        .concatMap(this::priceItem)
+        .collectList()
+        .map(items -> {
+          TacoOrder order = ApiMapper.toEntity(command);
+          order.setUser(user);
+          order.setPlacedAt(new Date());
+          order.setCurrency(ORDER_CURRENCY);
+
+          BigDecimal total = BigDecimal.ZERO.setScale(MONEY_SCALE);
+          for (OrderItem item : items) {
+            order.addItem(item);
+            total = total.add(item.getSubtotal());
+          }
+          order.setTotal(total.setScale(MONEY_SCALE,MONEY_ROUNDING));
+          return order;
+        });
+  }
+
+  private Mono<OrderItem> priceItem(OrderItemCommand itemCommand) {
+
+    if (itemCommand == null || itemCommand.getTaco() == null) {
+      return Mono.error(
+          ApiException.unprocessable("INVALID_ORDER_ITEM","Each item must contain a taco."));
+    }
+
+    Integer quantity = itemCommand.getQuantity();
+    if (quantity == null || quantity < 1 || quantity > maxQuantity) {
+      return Mono.error(
+          ApiException.unprocessable(
+              "INVALID_ORDER_QUANTITY",
+              "Quantity must be between 1 and " + maxQuantity + "."));
+    }
+
+    List<String> ingredientIds = itemCommand.getTaco().getIngredientIds() != null
+        ? itemCommand.getTaco().getIngredientIds()
+        : Collections.emptyList();
+
+    if (ingredientIds.isEmpty()) {
+      return Mono.error(
+          ApiException.unprocessable("INGREDIENTS_REQUIRED","A taco must contain ingredients."));
+    }
+
+    return Flux.fromIterable(ingredientIds)
+        .concatMap(ingredientId -> ingredientRepo.findById(ingredientId)
+            .switchIfEmpty(Mono.error(
+                ApiException.unprocessable(
+                    "INGREDIENT_NOT_FOUND","Ingredient does not exist: " + ingredientId))))
+        .collectList()
+        .flatMap(ingredients -> {
+          boolean invalidCatalogEntry = ingredients.stream()
+              .anyMatch(ingredient -> !ingredient.isAvailable()
+                  || ingredient.getUnitPrice() == null
+                  || ingredient.getUnitPrice().signum() < 0);
+
+          if (invalidCatalogEntry) {
+            return Mono.error(
+                ApiException.unprocessable(
+                    "INGREDIENT_UNAVAILABLE","Every ingredient must be available and have a valid price."));
+          }
+
+          BigDecimal unitPrice = ingredients.stream()
+              .map(Ingredient::getUnitPrice)
+              .reduce(BigDecimal.ZERO,BigDecimal::add)
+              .setScale(MONEY_SCALE,MONEY_ROUNDING);
+
+          BigDecimal subtotal = unitPrice
+              .multiply(BigDecimal.valueOf(quantity))
+              .setScale(MONEY_SCALE,MONEY_ROUNDING);
+
+          Taco taco = new Taco();
+          taco.setName(itemCommand.getTaco().getName());
+          taco.setIngredients(ingredients);
+
+          return Mono.just(new OrderItem(taco,quantity,unitPrice,subtotal));
+        });
   }
 
   /*

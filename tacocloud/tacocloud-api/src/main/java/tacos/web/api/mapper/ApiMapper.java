@@ -8,14 +8,15 @@ import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import tacos.Ingredient;
-import tacos.Ingredient.Type;
 import tacos.Taco;
 import tacos.TacoOrder;
+import tacos.TacoOrder.OrderItem;
 
 import tacos.web.api.dto.ApiDtos.IngredientRequest;
 import tacos.web.api.dto.ApiDtos.IngredientAdminResponse;
 import tacos.web.api.dto.ApiDtos.IngredientResponse;
 import tacos.web.api.dto.ApiDtos.OrderCreateRequest;
+import tacos.web.api.dto.ApiDtos.OrderItemResponse;
 import tacos.web.api.dto.ApiDtos.OrderResponse;
 import tacos.web.api.dto.ApiDtos.OrderTacoResponse;
 
@@ -62,25 +63,19 @@ public final class ApiMapper {
    */
   public static OrderCreateCommand toCommand(OrderCreateRequest request) {
 
-    List<TacoCommand> tacos =
-      request.getTacos() != null
-        ? request.getTacos()
+    List<OrderItemCommand> items =
+      request.getItems() != null
+        ? request.getItems()
             .stream()
-            .map(taco -> {
+            .map(item -> {
+              List<String> ingredientIds = item.getTaco().getIngredientIds() != null
+                  ? new ArrayList<>(item.getTaco().getIngredientIds())
+                  : Collections.emptyList();
 
-              List<IngredientCommand> ingredients = 
-                  taco.getIngredients() != null
-                      ? taco.getIngredients()
-                          .stream()
-                          .map(ingredient ->
-                              new IngredientCommand(
-                                  ingredient.getId(),
-                                  ingredient.getName(),
-                                  ingredient.getType()))
-                          .collect(Collectors.toList())
-                      : Collections.emptyList();
+              TacoCommand taco = new TacoCommand(
+                  item.getTaco().getName(),ingredientIds);
 
-              return new TacoCommand(taco.getName(),ingredients);
+              return new OrderItemCommand(taco,item.getQuantity());
             }).collect(Collectors.toList())
         : Collections.emptyList();
 
@@ -92,7 +87,7 @@ public final class ApiMapper {
         request.getDeliveryState(),
         request.getDeliveryZip(),
         request.getPaymentMethodId(),
-        tacos);
+        items);
   }
 
   public static TacoOrder toEntity(OrderCreateCommand command) {
@@ -104,25 +99,6 @@ public final class ApiMapper {
     order.setDeliveryCity(command.getDeliveryCity());
     order.setDeliveryState(command.getDeliveryState());
     order.setDeliveryZip(command.getDeliveryZip());
-
-    for (TacoCommand tacoCommand : command.getTacos()) {
-      Taco taco = new Taco();
-
-      taco.setName(tacoCommand.getName());
-
-      List<Ingredient> ingredients = new ArrayList<>();
-
-      for (IngredientCommand ingredientCommand : tacoCommand.getIngredients()) {
-        ingredients.add(new Ingredient(
-                ingredientCommand.getId(),
-                ingredientCommand.getName(),
-                ingredientCommand.getType()));
-      }
-
-      taco.setIngredients(ingredients);
-
-      order.addTaco(taco);
-    }
 
     return order;
   }
@@ -136,6 +112,14 @@ public final class ApiMapper {
         .map(ApiMapper::toResponse)
         .collect(Collectors.toList());
 
+    List<OrderItem> domainItems = order.getItems() != null
+        ? order.getItems()
+        : Collections.emptyList();
+
+    List<OrderItemResponse> items = domainItems.stream()
+        .map(ApiMapper::toResponse)
+        .collect(Collectors.toList());
+
     return new OrderResponse(
         order.getId(),
         order.getDeliveryName(),
@@ -144,7 +128,21 @@ public final class ApiMapper {
         order.getDeliveryState(),
         order.getDeliveryZip(),
         order.getPlacedAt(),
-        order.getStatus() != null ? order.getStatus().name() : null,tacos);
+        order.getStatus() != null ? order.getStatus().name() : null,
+        tacos,
+        items,
+        order.getTotal(),
+        order.getCurrency());
+  }
+
+
+  private static OrderItemResponse toResponse(OrderItem item) {
+
+    return new OrderItemResponse(
+        toResponse(item.getTaco()),
+        item.getQuantity(),
+        item.getUnitPriceAtPurchase(),
+        item.getSubtotal());
   }
 
 
@@ -170,7 +168,16 @@ public final class ApiMapper {
     private String deliveryState;
     private String deliveryZip;
     private String paymentMethodId;
-    private List<TacoCommand> tacos;
+    private List<OrderItemCommand> items;
+  }
+
+
+  @Data
+  @AllArgsConstructor
+  public static class OrderItemCommand {
+
+    private TacoCommand taco;
+    private Integer quantity;
   }
 
 
@@ -179,17 +186,6 @@ public final class ApiMapper {
   public static class TacoCommand {
 
     private String name;
-
-    private List<IngredientCommand> ingredients;
-  }
-
-
-  @Data
-  @AllArgsConstructor
-  public static class IngredientCommand {
-
-    private String id;
-    private String name;
-    private Type type;
+    private List<String> ingredientIds;
   }
 }

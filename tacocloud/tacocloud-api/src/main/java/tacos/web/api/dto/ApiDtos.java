@@ -133,10 +133,25 @@ public final class ApiDtos {
     private String paymentMethodId;
 
     @Valid
-    @NotNull(message="tacos are required")
-    @Size(min=1,max=20,message="order must contain between 1 and 20 tacos")
-    private List<OrderTacoRequest> tacos =
+    @NotNull(message="items are required")
+    @Size(min=1,max=20,message="order must contain between 1 and 20 items")
+    private List<OrderItemRequest> items =
         new ArrayList<>();
+  }
+
+
+  @Data
+  @NoArgsConstructor
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  public static class OrderItemRequest {
+
+    @Valid
+    @NotNull(message="taco is required")
+    private OrderTacoRequest taco;
+
+    @NotNull(message="quantity is required")
+    @Min(value=1,message="quantity must be at least 1")
+    private Integer quantity;
   }
 
 
@@ -149,10 +164,9 @@ public final class ApiDtos {
     @Size(max=50,message="taco name must have at most 50 characters")
     private String name;
 
-    @Valid
-    @NotNull(message="ingredients are required")
+    @NotNull(message="ingredientIds are required")
     @Size(min=1,max=20,message="taco must contain between 1 and 20 ingredients")
-    private List<IngredientRequest> ingredients =
+    private List<@NotBlank(message="ingredient id is required") String> ingredientIds =
         new ArrayList<>();
   }
 
@@ -172,6 +186,20 @@ public final class ApiDtos {
     private String status;
 
     private List<OrderTacoResponse> tacos;
+    private List<OrderItemResponse> items;
+    private BigDecimal total;
+    private String currency;
+  }
+
+
+  @Data
+  @AllArgsConstructor
+  public static class OrderItemResponse {
+
+    private OrderTacoResponse taco;
+    private int quantity;
+    private BigDecimal unitPriceAtPurchase;
+    private BigDecimal subtotal;
   }
 
 

@@ -70,7 +70,7 @@ public class ApiExceptionHandlerTest {
         + "\"deliveryCity\":\"\","
         + "\"deliveryState\":\"X\","
         + "\"deliveryZip\":\"!\","
-        + "\"tacos\":[]"
+        + "\"items\":[]"
         + "}";
 
 
@@ -141,7 +141,7 @@ public class ApiExceptionHandlerTest {
 
     assertTrue(
         fields.contains(
-            "tacos"));
+            "items"));
 
 
     /*

@@ -19,8 +19,7 @@ export class CartComponent implements OnInit {
     deliveryZip: '',
     cardNumber: '',
     expiration: '',
-    cvv: '',
-    tacos: []
+    cvv: ''
   };
 
   constructor(private cart: CartService, private httpClient: HttpClient) {
@@ -38,11 +37,6 @@ export class CartComponent implements OnInit {
   }
 
   onSubmit() {
-    // this.model.tacos = this.cart.getItemsInCart();
-    this.cart.getItemsInCart().forEach(cartItem => {
-      this.model.tacos.push(cartItem.taco);
-    });
-
     const tokenizationRequest = {
       cardNumber: this.model.cardNumber,
       expiration: this.model.expiration,
@@ -55,6 +49,17 @@ export class CartComponent implements OnInit {
             headers: new HttpHeaders().set('Content-type', 'application/json')
                     .set('Accept', 'application/json'),
         }).subscribe(paymentMethod => {
+          const items = this.cart.getItemsInCart()
+            .filter(cartItem => Number(cartItem.quantity) > 0)
+            .map(cartItem => ({
+              taco: {
+                name: cartItem.taco.name,
+                ingredientIds: cartItem.taco.ingredients
+                  .map(ingredient => ingredient.id)
+              },
+              quantity: Number(cartItem.quantity)
+            }));
+
           const orderRequest = {
             deliveryName: this.model.deliveryName,
             deliveryStreet: this.model.deliveryStreet,
@@ -62,7 +67,7 @@ export class CartComponent implements OnInit {
             deliveryState: this.model.deliveryState,
             deliveryZip: this.model.deliveryZip,
             paymentMethodId: paymentMethod.id,
-            tacos: this.model.tacos
+            items: items
           };
 
           this.model.cardNumber = '';

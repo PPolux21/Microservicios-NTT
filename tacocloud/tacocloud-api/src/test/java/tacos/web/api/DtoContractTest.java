@@ -21,8 +21,8 @@ import tacos.Taco;
 import tacos.TacoOrder;
 import tacos.User;
 
-import tacos.web.api.dto.ApiDtos.IngredientRequest;
 import tacos.web.api.dto.ApiDtos.OrderCreateRequest;
+import tacos.web.api.dto.ApiDtos.OrderItemRequest;
 import tacos.web.api.dto.ApiDtos.OrderResponse;
 import tacos.web.api.dto.ApiDtos.OrderTacoRequest;
 import tacos.web.api.dto.ApiDtos.PaymentMethodResponse;
@@ -70,34 +70,34 @@ public class DtoContractTest {
   @Test
   public void shouldMapRequestCommandAndEntityResponse() {
 
-    IngredientRequest ingredient = new IngredientRequest();
-
-    ingredient.setId("FLTO");
-    ingredient.setName("Flour Tortilla");
-    ingredient.setType(Ingredient.Type.WRAP);
-
     OrderTacoRequest tacoRequest = new OrderTacoRequest();
 
     tacoRequest.setName("Test Taco");
-    tacoRequest.setIngredients(Arrays.asList(ingredient));
+    tacoRequest.setIngredientIds(Arrays.asList("FLTO"));
+
+    OrderItemRequest itemRequest = new OrderItemRequest();
+    itemRequest.setTaco(tacoRequest);
+    itemRequest.setQuantity(2);
 
     OrderCreateRequest request = new OrderCreateRequest();
 
     request.setDeliveryName("Jose");
     request.setDeliveryCity("Aguascalientes");
-    request.setTacos(Arrays.asList(tacoRequest));
+    request.setItems(Arrays.asList(itemRequest));
 
     OrderCreateCommand command = ApiMapper.toCommand(request);
 
     assertEquals("Jose",command.getDeliveryName());
-    assertEquals(1,command.getTacos().size());
+    assertEquals(1,command.getItems().size());
+    assertEquals(2,command.getItems().get(0).getQuantity());
     assertEquals("FLTO",
         command
-            .getTacos()
+            .getItems()
             .get(0)
-            .getIngredients()
+            .getTaco()
+            .getIngredientIds()
             .get(0)
-            .getId());
+    );
 
     TacoOrder order = new TacoOrder();
 
@@ -149,6 +149,12 @@ public class DtoContractTest {
       + "\"placedAt\":\"2000-01-01T00:00:00Z\","
       + "\"status\":\"PREPARING\","
       + "\"userId\":\"OTHER-USER\","
+      + "\"total\":\"0.01\","
+      + "\"items\":[{"
+      + "\"quantity\":2,"
+      + "\"unitPriceAtPurchase\":\"0.01\","
+      + "\"subtotal\":\"0.02\","
+      + "\"taco\":{\"name\":\"Test Taco\",\"ingredientIds\":[\"FLTO\"]}}],"
       + "\"ccNumber\":\"TEST-PAN\","
       + "\"ccCVV\":\"TEST-CVV\""
       + "}";
@@ -171,6 +177,9 @@ public class DtoContractTest {
     assertNotEquals(clientPlacedAt,order.getPlacedAt());
     
     assertNull(order.getUser());
+
+    assertEquals(0,new java.math.BigDecimal("0.00").compareTo(order.getTotal()));
+    assertEquals(2,command.getItems().get(0).getQuantity());
 
     assertTrue(order.getStatus() == null || order.getStatus() == TacoOrder.Status.CREATED);
   }

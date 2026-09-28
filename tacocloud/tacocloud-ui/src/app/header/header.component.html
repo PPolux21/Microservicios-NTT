@@ -15,7 +15,7 @@
       <div class="topbaritem" style="font-size: 17pt;">
         <a [routerLink]="['cart']" class="plainlink">
           <img src="assets/cart.png" align="center" />
-          {{cart.getItemsInCart().length * 4.99 | currency}}
+          {{cart.getCartTotal() | currency:'MXN'}}
         </a>
       </div>
     </div>

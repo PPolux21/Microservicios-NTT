@@ -78,4 +78,42 @@ describe('AppComponent', () => {
     const app = fixture.debugElement.componentInstance;
     expect(app.title).toEqual('Taco Cloud');
   }));
+
+  it('should preserve and send a cart quantity greater than one', () => {
+    const cart = new CartService();
+    cart.addToCart({
+      name: 'Quantity Taco',
+      ingredients: [
+        {id: 'FLTO', unitPrice: 0.75},
+        {id: 'CHED', unitPrice: 0.85}
+      ]
+    });
+    cart.getItemsInCart()[0].quantity = 2;
+
+    const requests: any[] = [];
+    const httpClient: any = {
+      post: (url: string, body: any, options: any) => {
+        requests.push({url: url, body: body});
+        return {
+          subscribe: callback => callback(
+            url.indexOf('/tokenize') >= 0 ? {id: 'PAYMENT-1'} : {})
+        };
+      }
+    };
+
+    const component = new CartComponent(cart,httpClient);
+    component.model.cardNumber = '4111111111111111';
+    component.model.expiration = '12/30';
+    component.model.cvv = '123';
+    component.onSubmit();
+
+    expect(requests.length).toBe(2);
+    expect(requests[1].url).toContain('/api/orders');
+    expect(requests[1].body.items[0].quantity).toBe(2);
+    expect(requests[1].body.items[0].taco.ingredientIds)
+      .toEqual(['FLTO','CHED']);
+    expect(requests[1].body.total).toBeUndefined();
+    expect(requests[1].body.items[0].subtotal).toBeUndefined();
+    expect(requests[1].body.items[0].unitPriceAtPurchase).toBeUndefined();
+  });
 });

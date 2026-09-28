@@ -64,6 +64,8 @@ spring:
 tacocloud:
   cors:
     allowed-origins: http://localhost:4200
+  orders:
+    max-quantity: 10
 
 management:
 #end::infoGitModeFull[]

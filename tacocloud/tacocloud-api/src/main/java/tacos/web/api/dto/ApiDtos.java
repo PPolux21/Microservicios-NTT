@@ -1,11 +1,14 @@
 package tacos.web.api.dto;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
 import javax.validation.Valid;
 import javax.validation.constraints.NotBlank;
+import javax.validation.constraints.DecimalMin;
+import javax.validation.constraints.Min;
 import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
@@ -48,6 +51,57 @@ public final class ApiDtos {
     private String id;
     private String name;
     private Type type;
+    private BigDecimal unitPrice;
+    private boolean available;
+  }
+
+  @Data
+  @NoArgsConstructor
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  public static class IngredientCatalogUpdateRequest {
+
+    @DecimalMin(value="0.00",message="unitPrice must not be negative")
+    private BigDecimal unitPrice;
+
+    private Boolean available;
+
+    @Min(value=0,message="reorderLevel must not be negative")
+    private Integer reorderLevel;
+
+    @NotNull(message="expectedVersion is required")
+    @Min(value=0,message="expectedVersion must not be negative")
+    private Long expectedVersion;
+
+    public boolean hasChanges() {
+      return unitPrice != null || available != null || reorderLevel != null;
+    }
+  }
+
+  @Data
+  @NoArgsConstructor
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  public static class StockAdjustmentRequest {
+
+    @NotNull(message="quantity is required")
+    private Integer quantity;
+
+    @NotNull(message="expectedVersion is required")
+    @Min(value=0,message="expectedVersion must not be negative")
+    private Long expectedVersion;
+  }
+
+  @Data
+  @AllArgsConstructor
+  public static class IngredientAdminResponse {
+
+    private String id;
+    private String name;
+    private Type type;
+    private BigDecimal unitPrice;
+    private boolean available;
+    private int stockOnHand;
+    private int reorderLevel;
+    private Long version;
   }
 
   @Data

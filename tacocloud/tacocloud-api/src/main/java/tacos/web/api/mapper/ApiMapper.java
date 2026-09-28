@@ -13,6 +13,7 @@ import tacos.Taco;
 import tacos.TacoOrder;
 
 import tacos.web.api.dto.ApiDtos.IngredientRequest;
+import tacos.web.api.dto.ApiDtos.IngredientAdminResponse;
 import tacos.web.api.dto.ApiDtos.IngredientResponse;
 import tacos.web.api.dto.ApiDtos.OrderCreateRequest;
 import tacos.web.api.dto.ApiDtos.OrderResponse;
@@ -36,7 +37,23 @@ public final class ApiMapper {
     return new IngredientResponse(
         ingredient.getId(),
         ingredient.getName(),
-        ingredient.getType());
+        ingredient.getType(),
+        ingredient.getUnitPrice(),
+        ingredient.isAvailable());
+  }
+
+  public static IngredientAdminResponse toAdminResponse(
+      Ingredient ingredient) {
+
+    return new IngredientAdminResponse(
+        ingredient.getId(),
+        ingredient.getName(),
+        ingredient.getType(),
+        ingredient.getUnitPrice(),
+        ingredient.isAvailable(),
+        ingredient.getStockOnHand(),
+        ingredient.getReorderLevel(),
+        ingredient.getVersion());
   }
 
 

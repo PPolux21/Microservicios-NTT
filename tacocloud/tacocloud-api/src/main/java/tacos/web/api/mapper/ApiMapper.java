@@ -28,9 +28,12 @@ import tacos.web.api.dto.ApiDtos.TacoCatalogResponse;
 import tacos.web.api.dto.ApiDtos.TacoClassificationResponse;
 import tacos.web.api.dto.ApiDtos.TacoDesignValidationResponse;
 import tacos.web.api.dto.ApiDtos.TacoDesignViolationResponse;
+import tacos.web.api.dto.ApiDtos.TacoSearchResponse;
 import tacos.web.api.TacoClassificationService.ClassifiedTaco;
 import tacos.web.api.TacoClassificationService.TacoClassification;
+import tacos.web.api.TacoClassificationService;
 import tacos.web.api.TacoDesignValidator.ValidationResult;
+import tacos.data.TacoSearchRepository.TacoSearchPage;
 
 public final class ApiMapper {
 
@@ -190,6 +193,23 @@ public final class ApiMapper {
             violation.getCode(),violation.getMessage()))
         .collect(Collectors.toList());
     return new TacoDesignValidationResponse(result.isValid(),violations);
+  }
+
+  public static TacoSearchResponse toResponse(TacoSearchPage page,
+      TacoClassificationService classificationService) {
+    List<TacoCatalogResponse> items = page.getItems().stream()
+        .map(taco -> {
+          List<Ingredient> ingredients = taco.getIngredients() != null
+              ? taco.getIngredients()
+              : Collections.emptyList();
+          return toResponse(new ClassifiedTaco(
+              taco,ingredients,
+              classificationService.classifyIngredients(ingredients)));
+        })
+        .collect(Collectors.toList());
+    return new TacoSearchResponse(
+        items,page.getPage(),page.getSize(),page.getTotalElements(),
+        page.getTotalPages());
   }
 
   private static List<OrderItemCommand> toItemCommands(

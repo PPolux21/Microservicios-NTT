@@ -278,6 +278,42 @@ public final class ApiDtos {
 
   @Data
   @NoArgsConstructor
+  public static class TacoSearchQuery {
+
+    @Size(max=50,message="name must have at most 50 characters")
+    private String name;
+
+    @Size(max=20,message="ingredientId must have at most 20 characters")
+    private String ingredientId;
+
+    private String diet;
+    private String excludeAllergen;
+    private String spice;
+
+    @Min(value=0,message="page must not be negative")
+    private int page = 0;
+
+    @Min(value=1,message="size must be at least 1")
+    private int size = 20;
+
+    private String sort = "createdAt,desc";
+  }
+
+
+  @Data
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class TacoSearchResponse {
+    private List<TacoCatalogResponse> items;
+    private int page;
+    private int size;
+    private long totalElements;
+    private int totalPages;
+  }
+
+
+  @Data
+  @NoArgsConstructor
   @JsonIgnoreProperties(ignoreUnknown = true)
   public static class TacoDesignRequest {
 

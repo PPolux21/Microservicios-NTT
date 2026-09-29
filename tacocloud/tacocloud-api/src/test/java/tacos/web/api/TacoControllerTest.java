@@ -3,6 +3,7 @@ package tacos.web.api;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -20,7 +21,6 @@ import org.mockito.Mockito;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 import tacos.Ingredient;
@@ -31,6 +31,8 @@ import tacos.Ingredient.Type;
 import tacos.Taco;
 import tacos.data.IngredientRepository;
 import tacos.data.TacoRepository;
+import tacos.data.TacoSearchRepository.TacoSearchPage;
+import tacos.data.TacoSearchRepository.TacoSearchQuery;
 import tacos.web.api.dto.ApiDtos.TacoCatalogResponse;
 import tacos.web.api.dto.ApiDtos.TacoDesignValidationResponse;
 import tacos.web.api.error.ApiExceptionHandler.ApiException;
@@ -38,7 +40,7 @@ import tacos.web.api.error.ApiExceptionHandler.ApiException;
 public class TacoControllerTest {
 
   @Test
-  public void shouldReturnRecentTacosWithDerivedClassification() {
+  public void shouldReturnFirstSearchPageWithDerivedClassification() {
     Taco[] tacos = new Taco[16];
     for (int index = 0; index < tacos.length; index++) {
       tacos[index] = testTaco(String.valueOf(index + 1));
@@ -46,23 +48,25 @@ public class TacoControllerTest {
 
     TacoRepository tacoRepo = Mockito.mock(TacoRepository.class);
     IngredientRepository ingredientRepo = Mockito.mock(IngredientRepository.class);
-    when(tacoRepo.findAll()).thenReturn(Flux.just(tacos));
-    when(ingredientRepo.findById("LETC"))
-        .thenReturn(Mono.just(plantIngredient("LETC")));
-    when(ingredientRepo.findById("SLSA"))
-        .thenReturn(Mono.just(spicyPlantIngredient()));
+    when(tacoRepo.search(any(TacoSearchQuery.class))).thenReturn(Mono.just(
+        new TacoSearchPage(Arrays.asList(tacos).subList(0,12),0,12,16)));
 
-    client(tacoRepo,ingredientRepo).get().uri("/api/tacos?recent")
+    client(tacoRepo,ingredientRepo).get()
+      .uri("/api/tacos?page=0&size=12&sort=createdAt,desc")
       .exchange()
       .expectStatus().isOk()
       .expectBody()
-        .jsonPath("$").isArray()
-        .jsonPath("$[0].id").isEqualTo("1")
-        .jsonPath("$[0].classification.dietaryTags").isArray()
-        .jsonPath("$[0].classification.spiceLevel").isEqualTo("HOT")
-        .jsonPath("$[0].classification.disclaimer").isNotEmpty()
-        .jsonPath("$[11].id").isEqualTo("12")
-        .jsonPath("$[12]").doesNotExist();
+        .jsonPath("$.items").isArray()
+        .jsonPath("$.items[0].id").isEqualTo("1")
+        .jsonPath("$.items[0].classification.dietaryTags").isArray()
+        .jsonPath("$.items[0].classification.spiceLevel").isEqualTo("HOT")
+        .jsonPath("$.items[0].classification.disclaimer").isNotEmpty()
+        .jsonPath("$.items[11].id").isEqualTo("12")
+        .jsonPath("$.items[12]").doesNotExist()
+        .jsonPath("$.page").isEqualTo(0)
+        .jsonPath("$.size").isEqualTo(12)
+        .jsonPath("$.totalElements").isEqualTo(16)
+        .jsonPath("$.totalPages").isEqualTo(2);
   }
 
   @Test
@@ -174,6 +178,50 @@ public class TacoControllerTest {
         .verify();
   }
 
+  @Test
+  public void shouldRejectUnsafeSortAndExcessivePageSize() {
+    TacoRepository tacoRepo = Mockito.mock(TacoRepository.class);
+    IngredientRepository ingredientRepo = Mockito.mock(IngredientRepository.class);
+    TacoController controller = controller(tacoRepo,ingredientRepo);
+    controller.configureMaxPageSize(50);
+
+    tacos.web.api.dto.ApiDtos.TacoSearchQuery unsafeSort =
+        new tacos.web.api.dto.ApiDtos.TacoSearchQuery();
+    unsafeSort.setSort("password,asc");
+    ApiException sortError = assertThrows(
+        ApiException.class,() -> controller.search(unsafeSort));
+    assertEquals("INVALID_SORT",sortError.getCode());
+
+    unsafeSort.setSort("createdAt,sideways");
+    ApiException directionError = assertThrows(
+        ApiException.class,() -> controller.search(unsafeSort));
+    assertEquals("INVALID_SORT",directionError.getCode());
+
+    tacos.web.api.dto.ApiDtos.TacoSearchQuery excessive =
+        new tacos.web.api.dto.ApiDtos.TacoSearchQuery();
+    excessive.setSize(51);
+    ApiException sizeError = assertThrows(
+        ApiException.class,() -> controller.search(excessive));
+    assertEquals("PAGE_SIZE_EXCEEDED",sizeError.getCode());
+  }
+
+  @Test
+  public void shouldRejectNegativePageAndZeroSizeThroughBeanValidation() {
+    TacoRepository tacoRepo = Mockito.mock(TacoRepository.class);
+    IngredientRepository ingredientRepo = Mockito.mock(IngredientRepository.class);
+
+    client(tacoRepo,ingredientRepo).get().uri("/api/tacos?page=-1&size=20")
+        .exchange().expectStatus().isBadRequest();
+    client(tacoRepo,ingredientRepo).get().uri("/api/tacos?page=0&size=0")
+        .exchange().expectStatus().isBadRequest();
+    client(tacoRepo,ingredientRepo).get().uri(uriBuilder -> uriBuilder
+        .path("/api/tacos")
+        .queryParam("name",String.join("",java.util.Collections.nCopies(51,"x")))
+        .build())
+        .exchange().expectStatus().isBadRequest();
+    verify(tacoRepo,never()).search(any(TacoSearchQuery.class));
+  }
+
   private WebTestClient client(TacoRepository tacoRepo,
       IngredientRepository ingredientRepo) {
     return WebTestClient.bindToController(controller(tacoRepo,ingredientRepo))
@@ -198,12 +246,8 @@ public class TacoControllerTest {
     taco.setId(id);
     taco.setName("Test Taco " + id);
     taco.setIngredients(Arrays.asList(
-        ingredientReference("LETC"),ingredientReference("SLSA")));
+        plantIngredient("LETC"),spicyPlantIngredient()));
     return taco;
-  }
-
-  private Ingredient ingredientReference(String id) {
-    return new Ingredient(id,id,Type.VEGGIES);
   }
 
   private Ingredient plantIngredient(String id) {

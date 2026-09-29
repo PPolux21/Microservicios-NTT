@@ -64,6 +64,8 @@ tacocloud:
   design-rules:
     allow-extreme-spice: false
     vegan-only: false
+  search:
+    max-page-size: 50
   coupons:
     rules:
       PROMO10:

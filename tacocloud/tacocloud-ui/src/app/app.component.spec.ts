@@ -26,6 +26,8 @@ import { LittleButtonComponent } from './little-button/littlebutton.component';
 import { LocationsComponent } from './locations/locations.component';
 import { FormGroupDirective } from '@angular/forms/src/directives/reactive_directives/form_group_directive';
 import { HttpClientModule } from '@angular/common/http';
+import { Observable } from 'rxjs/Observable';
+import 'rxjs/add/observable/of';
 
 import { CartComponent } from './cart/cart.component';
 import { CartService } from './cart/cart-service';
@@ -115,5 +117,22 @@ describe('AppComponent', () => {
     expect(requests[1].body.total).toBeUndefined();
     expect(requests[1].body.items[0].subtotal).toBeUndefined();
     expect(requests[1].body.items[0].unitPriceAtPurchase).toBeUndefined();
+  });
+
+  it('should request the paged taco API instead of the legacy recent route', () => {
+    let requestedPath: string;
+    const apiService: any = {
+      get: (path: string) => {
+        requestedPath = path;
+        return Observable.of({json: () => ({items: []})});
+      }
+    };
+    const service = new RecentTacosService(apiService);
+
+    service.getRecentTacos().subscribe(page => expect(page.items).toEqual([]));
+
+    expect(requestedPath)
+      .toBe('/api/tacos?page=0&size=12&sort=createdAt%2Cdesc');
+    expect(requestedPath).not.toContain('/tacos?recent');
   });
 });

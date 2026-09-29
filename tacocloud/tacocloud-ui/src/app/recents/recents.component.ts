@@ -1,6 +1,5 @@
 import { Component, OnInit, Injectable } from '@angular/core';
-import { Http } from '@angular/http';
-import { HttpClient } from '@angular/common/http';
+import { RecentTacosService } from './RecentTacosService';
 
 @Component({
   selector: 'recent-tacos',
@@ -12,10 +11,10 @@ import { HttpClient } from '@angular/common/http';
 export class RecentTacosComponent implements OnInit {
   recentTacos: any;
 
-  constructor(private httpClient: HttpClient) { }
+  constructor(private recentTacosService: RecentTacosService) { }
 
   ngOnInit() {
-    this.httpClient.get('http://localhost:8080/api/tacos?recent') // <1>
-        .subscribe(data => this.recentTacos = data);
+    this.recentTacosService.getRecentTacos()
+        .subscribe(page => this.recentTacos = page.items);
   }
 }

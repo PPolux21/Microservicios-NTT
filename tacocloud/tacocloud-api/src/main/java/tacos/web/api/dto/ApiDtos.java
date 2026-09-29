@@ -277,6 +277,40 @@ public final class ApiDtos {
 
 
   @Data
+  @NoArgsConstructor
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  public static class TacoDesignRequest {
+
+    @NotBlank(message="taco name is required")
+    @Size(max=50,message="taco name must have at most 50 characters")
+    private String name;
+
+    @NotNull(message="ingredientIds are required")
+    @Size(max=50,message="ingredientIds must have at most 50 entries")
+    private List<@NotBlank(message="ingredient id is required") String>
+        ingredientIds = new ArrayList<>();
+  }
+
+
+  @Data
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class TacoDesignValidationResponse {
+    private boolean valid;
+    private List<TacoDesignViolationResponse> violations;
+  }
+
+
+  @Data
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class TacoDesignViolationResponse {
+    private String code;
+    private String message;
+  }
+
+
+  @Data
   @AllArgsConstructor
   public static class OrderItemResponse {
 

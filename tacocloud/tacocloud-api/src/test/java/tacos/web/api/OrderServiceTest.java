@@ -62,6 +62,9 @@ import tacos.web.api.coupon.CouponProperties;
 import tacos.web.api.coupon.CouponProperties.CouponRule;
 import tacos.web.api.coupon.CouponProperties.CouponType;
 import tacos.web.api.coupon.CouponService;
+import tacos.web.api.TacoDesignValidator.RuleViolation;
+import tacos.web.api.TacoDesignValidator.TacoDesignContext;
+import tacos.web.api.TacoDesignValidator.ValidationResult;
 
 public class OrderServiceTest {
 
@@ -76,6 +79,7 @@ public class OrderServiceTest {
   private CouponProperties couponProperties;
   private InventoryService inventoryService;
   private TacoClassificationService classificationService;
+  private TacoDesignValidator designValidator;
 
   @BeforeEach
   public void setup() {
@@ -96,6 +100,18 @@ public class OrderServiceTest {
         Clock.fixed(Instant.parse("2026-06-15T12:00:00Z"),ZoneOffset.UTC));
     inventoryService = Mockito.mock(InventoryService.class);
     classificationService = new TacoClassificationService(ingredientRepo);
+    designValidator = Mockito.mock(TacoDesignValidator.class);
+    when(designValidator.validateResolved(
+        any(String.class),any(List.class),any(List.class)))
+        .thenAnswer(invocation -> {
+          String name = invocation.getArgument(0);
+          List<String> ids = invocation.getArgument(1);
+          List<Ingredient> ingredients = invocation.getArgument(2);
+          TacoDesignContext context = new TacoDesignContext(
+              name,ids,ingredients,
+              classificationService.classifyIngredients(ingredients));
+          return new ValidationResult(context,Collections.emptyList());
+        });
     when(inventoryService.reserve(any(TacoOrder.class)))
         .thenAnswer(invocation -> {
           TacoOrder order = invocation.getArgument(0);
@@ -106,7 +122,8 @@ public class OrderServiceTest {
 
     service = new OrderService(
         repo,orderMessages,emailOrderService,userRepo,paymentMethodRepo,
-        ingredientRepo,couponService,inventoryService,classificationService);
+        ingredientRepo,couponService,inventoryService,classificationService,
+        designValidator);
   }
 
 
@@ -691,6 +708,56 @@ public class OrderServiceTest {
     org.mockito.InOrder sequence = Mockito.inOrder(inventoryService,repo);
     sequence.verify(inventoryService).release("ORDER-1");
     sequence.verify(repo).deleteById("ORDER-1");
+  }
+
+  @Test
+  public void shouldRejectSameInvalidDesignBeforeReserveInCreateAndQuote() {
+    Authentication authentication = authenticatedUserWithPayment();
+    Ingredient ingredient = catalogIngredient("TMTO","1.00");
+    when(ingredientRepo.findById("TMTO")).thenReturn(Mono.just(ingredient));
+
+    TacoDesignContext context = new TacoDesignContext(
+        "Invalid Taco",Collections.singletonList("TMTO"),
+        Collections.singletonList(ingredient),
+        classificationService.classifyIngredients(
+            Collections.singletonList(ingredient)));
+    ValidationResult invalid = new ValidationResult(
+        context,Collections.singletonList(
+            new RuleViolation("BASE_REQUIRED","Exactly one base is required.")));
+    when(designValidator.validateResolved(
+        any(String.class),any(List.class),any(List.class)))
+        .thenReturn(invalid);
+    when(designValidator.invalidDesign(invalid)).thenReturn(
+        ApiException.unprocessable(
+            "TACO_DESIGN_INVALID","Taco design violates one or more rules.",
+            Collections.singletonList(new tacos.web.api.error.ApiProblem.Violation(
+                "BASE_REQUIRED","Exactly one base is required."))));
+
+    OrderCreateCommand create = orderCommand(1,"TMTO","TMTO");
+    OrderQuoteCommand quote = new OrderQuoteCommand(
+        create.getItems(),null);
+
+    StepVerifier.create(service.createOrder(create,authentication))
+        .expectErrorSatisfies(error -> assertDesignError(error,"BASE_REQUIRED"))
+        .verify();
+    StepVerifier.create(service.quote(quote))
+        .expectErrorSatisfies(error -> assertDesignError(error,"BASE_REQUIRED"))
+        .verify();
+
+    verify(designValidator,times(2)).validateResolved(
+        any(String.class),any(List.class),any(List.class));
+    verify(ingredientRepo,times(2)).findById("TMTO");
+    verify(inventoryService,never()).reserve(any(TacoOrder.class));
+    verify(repo,never()).save(any(TacoOrder.class));
+  }
+
+  private void assertDesignError(Throwable error,String violationCode) {
+    assertTrue(error instanceof ApiException);
+    ApiException apiError = (ApiException) error;
+    assertEquals("TACO_DESIGN_INVALID",apiError.getCode());
+    assertTrue(apiError.getViolations().stream()
+        .map(tacos.web.api.error.ApiProblem.Violation::getField)
+        .anyMatch(violationCode::equals));
   }
 
   private Authentication authenticatedUserWithPayment() {

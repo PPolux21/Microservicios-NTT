@@ -78,7 +78,7 @@ public class ApiExceptionHandler {
         titleFor(exception.getStatus()),
         exception.getMessage(),
         request.getRequestURI(),
-        Collections.emptyList());
+        exception.getViolations());
   }
 
   @ExceptionHandler(
@@ -231,13 +231,25 @@ public class ApiExceptionHandler {
 
     private final String code;
 
+    private final List<Violation> violations;
+
 
     public ApiException(HttpStatus status,String code,String detail) {
+
+      this(status,code,detail,Collections.emptyList());
+    }
+
+
+    public ApiException(HttpStatus status,String code,String detail,
+        List<Violation> violations) {
 
       super(detail);
 
       this.status = status;
       this.code = code;
+      this.violations = violations != null
+          ? Collections.unmodifiableList(violations)
+          : Collections.emptyList();
     }
 
 
@@ -268,6 +280,14 @@ public class ApiExceptionHandler {
     public static ApiException unprocessable(String code,String detail) {
 
       return new ApiException(HttpStatus.UNPROCESSABLE_ENTITY,code,detail);
+    }
+
+
+    public static ApiException unprocessable(String code,String detail,
+        List<Violation> violations) {
+
+      return new ApiException(
+          HttpStatus.UNPROCESSABLE_ENTITY,code,detail,violations);
     }
   }
 }

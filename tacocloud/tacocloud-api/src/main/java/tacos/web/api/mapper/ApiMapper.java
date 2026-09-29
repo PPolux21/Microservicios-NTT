@@ -26,8 +26,11 @@ import tacos.web.api.dto.ApiDtos.OrderResponse;
 import tacos.web.api.dto.ApiDtos.OrderTacoResponse;
 import tacos.web.api.dto.ApiDtos.TacoCatalogResponse;
 import tacos.web.api.dto.ApiDtos.TacoClassificationResponse;
+import tacos.web.api.dto.ApiDtos.TacoDesignValidationResponse;
+import tacos.web.api.dto.ApiDtos.TacoDesignViolationResponse;
 import tacos.web.api.TacoClassificationService.ClassifiedTaco;
 import tacos.web.api.TacoClassificationService.TacoClassification;
+import tacos.web.api.TacoDesignValidator.ValidationResult;
 
 public final class ApiMapper {
 
@@ -177,6 +180,16 @@ public final class ApiMapper {
         copyAllergens(classification.getAllergens()),
         classification.getSpiceLevel(),
         tacos.web.api.TacoClassificationService.DISCLAIMER);
+  }
+
+  public static TacoDesignValidationResponse toResponse(
+      ValidationResult result) {
+    List<TacoDesignViolationResponse> violations = result.getViolations()
+        .stream()
+        .map(violation -> new TacoDesignViolationResponse(
+            violation.getCode(),violation.getMessage()))
+        .collect(Collectors.toList());
+    return new TacoDesignValidationResponse(result.isValid(),violations);
   }
 
   private static List<OrderItemCommand> toItemCommands(

@@ -61,6 +61,9 @@ tacocloud:
     allowed-origins: http://localhost:4200
   orders:
     max-quantity: 10
+  design-rules:
+    allow-extreme-spice: false
+    vegan-only: false
   coupons:
     rules:
       PROMO10:

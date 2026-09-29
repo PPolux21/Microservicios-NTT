@@ -52,6 +52,7 @@ public class OrderService {
   private CouponService couponService;
   private InventoryService inventoryService;
   private TacoClassificationService classificationService;
+  private TacoDesignValidator designValidator;
   private int maxQuantity = 10;
 
   public OrderService(
@@ -63,7 +64,8 @@ public class OrderService {
       IngredientRepository ingredientRepo,
       CouponService couponService,
       InventoryService inventoryService,
-      TacoClassificationService classificationService) {
+      TacoClassificationService classificationService,
+      TacoDesignValidator designValidator) {
 
     this.repo = repo;
     this.orderMessages = orderMessages;
@@ -74,6 +76,7 @@ public class OrderService {
     this.couponService = couponService;
     this.inventoryService = inventoryService;
     this.classificationService = classificationService;
+    this.designValidator = designValidator;
   }
 
   @Value("${tacocloud.orders.max-quantity:10}")
@@ -214,21 +217,28 @@ public class OrderService {
     }
 
     return Flux.fromIterable(ingredientIds)
+        .distinct()
         .concatMap(ingredientId -> ingredientRepo.findById(ingredientId)
             .switchIfEmpty(Mono.error(
                 ApiException.unprocessable(
                     "INGREDIENT_NOT_FOUND","Ingredient does not exist: " + ingredientId))))
         .collectList()
         .flatMap(ingredients -> {
+          TacoDesignValidator.ValidationResult validation =
+              designValidator.validateResolved(
+                  itemCommand.getTaco().getName(),ingredientIds,ingredients);
+          if (!validation.isValid()) {
+            return Mono.error(designValidator.invalidDesign(validation));
+          }
+
           boolean invalidCatalogEntry = ingredients.stream()
-              .anyMatch(ingredient -> !ingredient.isAvailable()
-                  || ingredient.getUnitPrice() == null
+              .anyMatch(ingredient -> ingredient.getUnitPrice() == null
                   || ingredient.getUnitPrice().signum() < 0);
 
           if (invalidCatalogEntry) {
             return Mono.error(
                 ApiException.unprocessable(
-                    "INGREDIENT_UNAVAILABLE","Every ingredient must be available and have a valid price."));
+                    "INGREDIENT_PRICE_INVALID","Every ingredient must have a valid price."));
           }
 
           BigDecimal unitPrice = ingredients.stream()

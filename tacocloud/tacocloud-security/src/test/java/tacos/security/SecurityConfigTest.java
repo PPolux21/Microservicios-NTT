@@ -15,6 +15,10 @@ import static org.springframework.test.web.servlet
 
 import static org.springframework.test.web.servlet
     .request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet
+    .request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet
+    .request.MockMvcRequestBuilders.delete;
 
 import static org.springframework.test.web.servlet
     .result.MockMvcResultMatchers.status;
@@ -26,7 +30,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 
-import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ContextConfiguration;
 
 import org.springframework.security.core.userdetails.UserDetailsService;
 
@@ -34,11 +38,16 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 
 @WebMvcTest(controllers = SecurityConfigTest.TestController.class)
-@Import(SecurityConfig.class)
+@ContextConfiguration(classes={
+    SecurityConfig.class,
+    SecurityConfigTest.TestController.class
+})
 public class SecurityConfigTest {
 
   @Autowired
@@ -137,6 +146,28 @@ public class SecurityConfigTest {
             status().isForbidden());
   }
 
+  @Test
+  public void shouldRequireAuthenticationForFavorites()
+      throws Exception {
+
+    mvc.perform(get("/api/users/me/favorites"))
+        .andExpect(status().isUnauthorized());
+
+    mvc.perform(get("/api/users/me/favorites")
+            .with(user("jose").roles("USER")))
+        .andExpect(status().isOk());
+
+    mvc.perform(put("/api/users/me/favorites/TACO-1")
+            .with(csrf())
+            .with(user("jose").roles("USER")))
+        .andExpect(status().isOk());
+
+    mvc.perform(delete("/api/users/me/favorites/TACO-1")
+            .with(csrf())
+            .with(user("jose").roles("USER")))
+        .andExpect(status().isOk());
+  }
+
 
   @Test
   public void shouldProtectActuatorAndDataRest()
@@ -233,6 +264,21 @@ public class SecurityConfigTest {
 
     @GetMapping("/new-unlisted-route")
     public String unlisted() {
+      return "ok";
+    }
+
+    @GetMapping("/api/users/me/favorites")
+    public String favorites() {
+      return "ok";
+    }
+
+    @PutMapping("/api/users/me/favorites/{tacoId}")
+    public String addFavorite() {
+      return "ok";
+    }
+
+    @DeleteMapping("/api/users/me/favorites/{tacoId}")
+    public String removeFavorite() {
       return "ok";
     }
   }

@@ -17,6 +17,7 @@ import tacos.TacoOrder.OrderItem;
 
 import tacos.web.api.dto.ApiDtos.IngredientRequest;
 import tacos.web.api.dto.ApiDtos.DailyTacoResponse;
+import tacos.web.api.dto.ApiDtos.FavoritePageResponse;
 import tacos.web.api.dto.ApiDtos.IngredientAdminResponse;
 import tacos.web.api.dto.ApiDtos.IngredientResponse;
 import tacos.web.api.dto.ApiDtos.OrderCreateRequest;
@@ -35,6 +36,7 @@ import tacos.web.api.TacoClassificationService.TacoClassification;
 import tacos.web.api.TacoClassificationService;
 import tacos.web.api.TacoDesignValidator.ValidationResult;
 import tacos.web.api.DailyTacoService.DailyTacoRecommendation;
+import tacos.web.api.FavoriteService.FavoritePage;
 import tacos.data.TacoSearchRepository.TacoSearchPage;
 
 public final class ApiMapper {
@@ -219,6 +221,15 @@ public final class ApiMapper {
     return new DailyTacoResponse(
         toResponse(recommendation.getTaco()),
         recommendation.getDate().toString(),recommendation.getReason());
+  }
+
+  public static FavoritePageResponse toResponse(FavoritePage page) {
+    List<TacoCatalogResponse> items = page.getItems().stream()
+        .map(ApiMapper::toResponse)
+        .collect(Collectors.toList());
+    return new FavoritePageResponse(
+        items,page.getPage(),page.getSize(),page.getTotalElements(),
+        page.getTotalPages());
   }
 
   private static List<OrderItemCommand> toItemCommands(

@@ -17,6 +17,19 @@
         </div>
         <div *ngIf="(taco.ingredients | wraps)?.length == 0">in a bowl</div>
       </div>
+      <button type="button" (click)="toggleFavorite(taco)"
+          [attr.aria-label]="isFavorite(taco.id) ? 'Remove favorite' : 'Add favorite'">
+        {{isFavorite(taco.id) ? '♥' : '♡'}}
+      </button>
       <little-button label="Order this taco"></little-button>
+  </div>
+</div>
+
+<h2>My favorites</h2>
+<div class="recentsblock">
+  <div class="tacoblock" *ngFor="let taco of favoriteTacos">
+    <div class="tacoName">{{taco.name}}</div>
+    <button type="button" (click)="toggleFavorite(taco)"
+        aria-label="Remove favorite">♥</button>
   </div>
 </div>

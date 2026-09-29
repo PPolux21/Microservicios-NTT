@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.Collections;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.PersistenceConstructor;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.security.core.GrantedAuthority;
@@ -15,11 +16,9 @@ import lombok.ToString;
 import lombok.AccessLevel;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.RequiredArgsConstructor;
 
 @Data
 @NoArgsConstructor(access=AccessLevel.PRIVATE, force=true)
-@RequiredArgsConstructor
 @Document
 public class User implements UserDetails {
 
@@ -50,6 +49,21 @@ public class User implements UserDetails {
   private final String email;
 
   private Role role = Role.USER;
+
+  @PersistenceConstructor
+  public User(String username, String password, String fullname, String street,
+              String city, String state, String zip, String phoneNumber,
+              String email) {
+    this.username = username;
+    this.password = password;
+    this.fullname = fullname;
+    this.street = street;
+    this.city = city;
+    this.state = state;
+    this.zip = zip;
+    this.phoneNumber = phoneNumber;
+    this.email = email;
+  }
   
   @Override
   public Collection<? extends GrantedAuthority> getAuthorities() {

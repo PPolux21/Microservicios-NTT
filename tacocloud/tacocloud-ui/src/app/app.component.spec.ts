@@ -135,4 +135,47 @@ describe('AppComponent', () => {
       .toBe('/api/tacos?page=0&size=12&sort=createdAt%2Cdesc');
     expect(requestedPath).not.toContain('/tacos?recent');
   });
+
+  it('should use me routes without sending a userId for favorites', () => {
+    const requests: any[] = [];
+    const apiService: any = {
+      get: (path: string) => {
+        requests.push({method: 'GET', path: path});
+        return Observable.of({json: () => ({items: [{id: 'TACO-1'}]})});
+      },
+      put: (path: string, body: any) => {
+        requests.push({method: 'PUT', path: path, body: body});
+        return Observable.of({});
+      },
+      delete: (path: string) => {
+        requests.push({method: 'DELETE', path: path});
+        return Observable.of({});
+      }
+    };
+    const service = new RecentTacosService(apiService);
+
+    service.getFavorites().subscribe(page => expect(page.items.length).toBe(1));
+    service.addFavorite('TACO-1').subscribe();
+    service.removeFavorite('TACO-1').subscribe();
+
+    expect(requests[0].path)
+      .toBe('/api/users/me/favorites?page=0&size=50');
+    expect(requests[1])
+      .toEqual({method: 'PUT', path: '/api/users/me/favorites/TACO-1', body: {}});
+    expect(requests[2].path).toBe('/api/users/me/favorites/TACO-1');
+    expect(JSON.stringify(requests)).not.toContain('userId');
+  });
+
+  it('should restore favorite state from backend after component reload', () => {
+    const service: any = {
+      getRecentTacos: () => Observable.of({items: [{id: 'TACO-1'}]}),
+      getFavorites: () => Observable.of({items: [{id: 'TACO-1'}]})
+    };
+    const component = new RecentTacosComponent(service);
+
+    component.ngOnInit();
+
+    expect(component.isFavorite('TACO-1')).toBe(true);
+    expect(component.favoriteTacos[0].id).toBe('TACO-1');
+  });
 });

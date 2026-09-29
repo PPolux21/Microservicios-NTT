@@ -21,4 +21,20 @@ export class RecentTacosService {
     return this.search({page: 0, size: 12, sort: 'createdAt,desc'});
   }
 
+  getFavorites(page: number = 0, size: number = 50) {
+    return this.apiService
+        .get('/api/users/me/favorites?page=' + page + '&size=' + size)
+        .map(response => response.json());
+  }
+
+  addFavorite(tacoId: string) {
+    return this.apiService.put(
+        '/api/users/me/favorites/' + encodeURIComponent(tacoId), {});
+  }
+
+  removeFavorite(tacoId: string) {
+    return this.apiService.delete(
+        '/api/users/me/favorites/' + encodeURIComponent(tacoId));
+  }
+
 }

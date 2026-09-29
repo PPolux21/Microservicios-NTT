@@ -324,6 +324,30 @@ public final class ApiDtos {
 
   @Data
   @NoArgsConstructor
+  public static class FavoriteQuery {
+
+    @Min(value=0,message="page must not be negative")
+    private int page = 0;
+
+    @Min(value=1,message="size must be at least 1")
+    private int size = 20;
+  }
+
+
+  @Data
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class FavoritePageResponse {
+    private List<TacoCatalogResponse> items;
+    private int page;
+    private int size;
+    private long totalElements;
+    private int totalPages;
+  }
+
+
+  @Data
+  @NoArgsConstructor
   @JsonIgnoreProperties(ignoreUnknown = true)
   public static class TacoDesignRequest {
 

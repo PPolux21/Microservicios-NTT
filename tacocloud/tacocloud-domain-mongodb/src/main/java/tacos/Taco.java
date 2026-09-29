@@ -10,6 +10,8 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.rest.core.annotation.RestResource;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import lombok.Data;
 
 @Data
@@ -25,6 +27,9 @@ public class Taco {
   private String name;
   
   private Date createdAt = new Date();
+
+  @JsonProperty(access=JsonProperty.Access.READ_ONLY)
+  private boolean published = true;
   
   @Size(min=1, message="You must choose at least 1 ingredient")
   private List<Ingredient> ingredients;

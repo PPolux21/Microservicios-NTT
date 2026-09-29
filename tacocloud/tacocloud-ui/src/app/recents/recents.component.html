@@ -21,7 +21,23 @@
           [attr.aria-label]="isFavorite(taco.id) ? 'Remove favorite' : 'Add favorite'">
         {{isFavorite(taco.id) ? '♥' : '♡'}}
       </button>
+      <span class="rating">
+        Rate:
+        <button type="button" *ngFor="let score of ratingScores"
+            (click)="rateTaco(taco, score)"
+            [attr.aria-label]="'Rate ' + taco.name + ' ' + score">
+          {{score}}
+        </button>
+      </span>
       <little-button label="Order this taco"></little-button>
+  </div>
+</div>
+
+<h2>Top rated tacos</h2>
+<div class="recentsblock">
+  <div class="tacoblock" *ngFor="let rating of topTacos">
+    <div class="tacoName">{{rating.taco.name}}</div>
+    <div>{{rating.average}} / 5 ({{rating.count}} votes)</div>
   </div>
 </div>
 

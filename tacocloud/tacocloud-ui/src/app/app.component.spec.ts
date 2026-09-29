@@ -169,7 +169,8 @@ describe('AppComponent', () => {
   it('should restore favorite state from backend after component reload', () => {
     const service: any = {
       getRecentTacos: () => Observable.of({items: [{id: 'TACO-1'}]}),
-      getFavorites: () => Observable.of({items: [{id: 'TACO-1'}]})
+      getFavorites: () => Observable.of({items: [{id: 'TACO-1'}]}),
+      getTopTacos: () => Observable.of([])
     };
     const component = new RecentTacosComponent(service);
 
@@ -177,5 +178,33 @@ describe('AppComponent', () => {
 
     expect(component.isFavorite('TACO-1')).toBe(true);
     expect(component.favoriteTacos[0].id).toBe('TACO-1');
+  });
+
+  it('should rate with score only and reload aggregate ranking', () => {
+    const requests: any[] = [];
+    const apiService: any = {
+      put: (path: string, body: any) => {
+        requests.push({method: 'PUT', path: path, body: body});
+        return Observable.of({});
+      },
+      get: (path: string) => {
+        requests.push({method: 'GET', path: path});
+        return Observable.of({json: () => ([{
+          taco: {id: 'TACO-1'}, average: 4.50, count: 2
+        }])});
+      }
+    };
+    const service = new RecentTacosService(apiService);
+
+    service.rateTaco('TACO-1', 4).subscribe();
+    service.getTopTacos().subscribe(top => expect(top[0].count).toBe(2));
+
+    expect(requests[0]).toEqual({
+      method: 'PUT',
+      path: '/api/tacos/TACO-1/rating',
+      body: {score: 4}
+    });
+    expect(requests[1].path).toBe('/api/tacos/top?limit=10');
+    expect(JSON.stringify(requests)).not.toContain('userId');
   });
 });

@@ -5,12 +5,14 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import javax.validation.Valid;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.DecimalMin;
 import javax.validation.constraints.Min;
+import javax.validation.constraints.Max;
 import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
@@ -343,6 +345,28 @@ public final class ApiDtos {
     private int size;
     private long totalElements;
     private int totalPages;
+  }
+
+
+  @Data
+  @NoArgsConstructor
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  public static class RatingRequest {
+
+    @Min(value=1,message="score must be at least 1")
+    @Max(value=5,message="score must not exceed 5")
+    private int score;
+  }
+
+
+  @Data
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class TopTacoRatingResponse {
+    private TacoCatalogResponse taco;
+    private BigDecimal average;
+    private long count;
+    private Map<Integer,Long> distribution;
   }
 
 

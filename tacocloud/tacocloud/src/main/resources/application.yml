@@ -68,6 +68,9 @@ tacocloud:
     max-page-size: 50
   recommendation:
     zone: America/Mexico_City
+  rating:
+    min-votes: 3
+    max-top-limit: 50
   coupons:
     rules:
       PROMO10:

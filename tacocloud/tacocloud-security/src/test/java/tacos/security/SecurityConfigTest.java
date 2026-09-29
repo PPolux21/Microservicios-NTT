@@ -168,6 +168,22 @@ public class SecurityConfigTest {
         .andExpect(status().isOk());
   }
 
+  @Test
+  public void shouldRequireAuthenticationForRatingWrites()
+      throws Exception {
+
+    mvc.perform(put("/api/tacos/TACO-1/rating").with(csrf()))
+        .andExpect(status().isUnauthorized());
+
+    mvc.perform(put("/api/tacos/TACO-1/rating")
+            .with(csrf())
+            .with(user("jose").roles("USER")))
+        .andExpect(status().isOk());
+
+    mvc.perform(get("/api/tacos/top"))
+        .andExpect(status().isOk());
+  }
+
 
   @Test
   public void shouldProtectActuatorAndDataRest()
@@ -279,6 +295,16 @@ public class SecurityConfigTest {
 
     @DeleteMapping("/api/users/me/favorites/{tacoId}")
     public String removeFavorite() {
+      return "ok";
+    }
+
+    @PutMapping("/api/tacos/{tacoId}/rating")
+    public String rateTaco() {
+      return "ok";
+    }
+
+    @GetMapping("/api/tacos/top")
+    public String topTacos() {
       return "ok";
     }
   }

@@ -37,4 +37,16 @@ export class RecentTacosService {
         '/api/users/me/favorites/' + encodeURIComponent(tacoId));
   }
 
+  rateTaco(tacoId: string, score: number) {
+    return this.apiService.put(
+        '/api/tacos/' + encodeURIComponent(tacoId) + '/rating',
+        {score: score});
+  }
+
+  getTopTacos(limit: number = 10) {
+    return this.apiService
+        .get('/api/tacos/top?limit=' + limit)
+        .map(response => response.json());
+  }
+
 }

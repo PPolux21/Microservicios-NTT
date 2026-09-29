@@ -76,6 +76,13 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
             "ADMIN")
 
         .antMatchers(
+            HttpMethod.PUT,
+            "/api/tacos/*/rating")
+        .hasAnyRole(
+            "USER",
+            "ADMIN")
+
+        .antMatchers(
             "/api/users/me/favorites/**")
         .hasAnyRole(
             "USER",

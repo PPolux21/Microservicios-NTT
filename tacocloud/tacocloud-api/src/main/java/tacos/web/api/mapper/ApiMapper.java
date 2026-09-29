@@ -31,12 +31,14 @@ import tacos.web.api.dto.ApiDtos.TacoClassificationResponse;
 import tacos.web.api.dto.ApiDtos.TacoDesignValidationResponse;
 import tacos.web.api.dto.ApiDtos.TacoDesignViolationResponse;
 import tacos.web.api.dto.ApiDtos.TacoSearchResponse;
+import tacos.web.api.dto.ApiDtos.TopTacoRatingResponse;
 import tacos.web.api.TacoClassificationService.ClassifiedTaco;
 import tacos.web.api.TacoClassificationService.TacoClassification;
 import tacos.web.api.TacoClassificationService;
 import tacos.web.api.TacoDesignValidator.ValidationResult;
 import tacos.web.api.DailyTacoService.DailyTacoRecommendation;
 import tacos.web.api.FavoriteService.FavoritePage;
+import tacos.web.api.TacoRatingService.RankedTaco;
 import tacos.data.TacoSearchRepository.TacoSearchPage;
 
 public final class ApiMapper {
@@ -230,6 +232,15 @@ public final class ApiMapper {
     return new FavoritePageResponse(
         items,page.getPage(),page.getSize(),page.getTotalElements(),
         page.getTotalPages());
+  }
+
+  public static List<TopTacoRatingResponse> toRatingResponses(
+      List<RankedTaco> ratings) {
+    return ratings.stream()
+        .map(rating -> new TopTacoRatingResponse(
+            toResponse(rating.getTaco()),rating.getAverage(),
+            rating.getCount(),rating.getDistribution()))
+        .collect(Collectors.toList());
   }
 
   private static List<OrderItemCommand> toItemCommands(

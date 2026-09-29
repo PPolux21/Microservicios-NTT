@@ -11,17 +11,26 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Set;
+import java.util.Collections;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 import tacos.Ingredient;
 import tacos.Ingredient.Allergen;
@@ -179,6 +188,42 @@ public class TacoControllerTest {
   }
 
   @Test
+  public void shouldReturnDailyTacoWithoutPersisting() {
+    TacoRepository tacoRepo = Mockito.mock(TacoRepository.class);
+    IngredientRepository ingredientRepo = Mockito.mock(IngredientRepository.class);
+    Taco taco = dailyCandidate("TACO-A");
+    when(tacoRepo.findAllByOrderByIdAsc()).thenReturn(Flux.just(taco));
+    when(ingredientRepo.findById("BASE"))
+        .thenReturn(Mono.just(baseIngredient()));
+    when(ingredientRepo.findById("FILL-TACO-A"))
+        .thenReturn(Mono.just(plantIngredient("FILL-TACO-A")));
+
+    client(tacoRepo,ingredientRepo).get().uri("/api/tacos/today")
+        .exchange()
+        .expectStatus().isOk()
+        .expectBody()
+        .jsonPath("$.taco.id").isEqualTo("TACO-A")
+        .jsonPath("$.date").isEqualTo("2026-09-29")
+        .jsonPath("$.reason").isEqualTo(
+            "Seleccionado entre los tacos disponibles para la fecha 2026-09-29.");
+
+    verify(tacoRepo,never()).save(any(Taco.class));
+  }
+
+  @Test
+  public void shouldReturnUniformNotFoundWhenThereAreNoDailyCandidates() {
+    TacoRepository tacoRepo = Mockito.mock(TacoRepository.class);
+    IngredientRepository ingredientRepo = Mockito.mock(IngredientRepository.class);
+    when(tacoRepo.findAllByOrderByIdAsc()).thenReturn(Flux.empty());
+
+    client(tacoRepo,ingredientRepo).get().uri("/api/tacos/today")
+        .exchange()
+        .expectStatus().isNotFound()
+        .expectBody()
+        .jsonPath("$.code").isEqualTo("NO_TACO_AVAILABLE");
+  }
+
+  @Test
   public void shouldRejectUnsafeSortAndExcessivePageSize() {
     TacoRepository tacoRepo = Mockito.mock(TacoRepository.class);
     IngredientRepository ingredientRepo = Mockito.mock(IngredientRepository.class);
@@ -225,6 +270,7 @@ public class TacoControllerTest {
   private WebTestClient client(TacoRepository tacoRepo,
       IngredientRepository ingredientRepo) {
     return WebTestClient.bindToController(controller(tacoRepo,ingredientRepo))
+        .controllerAdvice(new TestApiExceptionHandler())
         .build();
   }
 
@@ -238,7 +284,32 @@ public class TacoControllerTest {
             rules.baseRule(),rules.ingredientCountRule(),
             rules.duplicateIngredientRule(),rules.availabilityRule(),
             rules.extremeSpiceRule(false),rules.veganModeRule(false)));
-    return new TacoController(tacoRepo,classification,validator);
+    Clock clock = Clock.fixed(
+        Instant.parse("2026-09-29T12:00:00Z"),
+        ZoneId.of("America/Mexico_City"));
+    DailyTacoService dailyTacoService = new DailyTacoService(
+        tacoRepo,validator,clock);
+    return new TacoController(
+        tacoRepo,classification,validator,dailyTacoService);
+  }
+
+  private Taco dailyCandidate(String id) {
+    Taco taco = new Taco();
+    taco.setId(id);
+    taco.setName("Daily " + id);
+    taco.setIngredients(Arrays.asList(
+        ingredientReference("BASE"),ingredientReference("FILL-" + id)));
+    return taco;
+  }
+
+  private Ingredient ingredientReference(String id) {
+    return new Ingredient(id,id,Type.VEGGIES);
+  }
+
+  private Ingredient baseIngredient() {
+    Ingredient ingredient = plantIngredient("BASE");
+    ingredient.setType(Type.WRAP);
+    return ingredient;
   }
 
   private Taco testTaco(String id) {
@@ -269,5 +340,15 @@ public class TacoControllerTest {
     ingredient.setAllergens(EnumSet.noneOf(Allergen.class));
     ingredient.setSpiceLevel(SpiceLevel.NONE);
     return ingredient;
+  }
+
+  @RestControllerAdvice
+  private static class TestApiExceptionHandler {
+
+    @ExceptionHandler(ApiException.class)
+    ResponseEntity<Map<String,String>> handle(ApiException error) {
+      return ResponseEntity.status(error.getStatus())
+          .body(Collections.singletonMap("code",error.getCode()));
+    }
   }
 }

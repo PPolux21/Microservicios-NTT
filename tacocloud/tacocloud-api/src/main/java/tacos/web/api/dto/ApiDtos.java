@@ -314,6 +314,16 @@ public final class ApiDtos {
 
   @Data
   @NoArgsConstructor
+  @AllArgsConstructor
+  public static class DailyTacoResponse {
+    private TacoCatalogResponse taco;
+    private String date;
+    private String reason;
+  }
+
+
+  @Data
+  @NoArgsConstructor
   @JsonIgnoreProperties(ignoreUnknown = true)
   public static class TacoDesignRequest {
 

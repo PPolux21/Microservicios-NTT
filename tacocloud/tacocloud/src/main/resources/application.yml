@@ -66,6 +66,8 @@ tacocloud:
     vegan-only: false
   search:
     max-page-size: 50
+  recommendation:
+    zone: America/Mexico_City
   coupons:
     rules:
       PROMO10:

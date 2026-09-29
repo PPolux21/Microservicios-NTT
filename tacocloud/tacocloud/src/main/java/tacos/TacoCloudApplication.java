@@ -1,6 +1,7 @@
 package tacos;
 
 import java.time.Clock;
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.Map;
 
@@ -10,6 +11,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.web.servlet.error.ErrorViewResolver;
 import org.springframework.context.annotation.Bean;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.servlet.ModelAndView;
 
@@ -21,8 +23,10 @@ public class TacoCloudApplication {
   }
 
   @Bean
-  Clock couponClock() {
-    return Clock.systemUTC();
+  Clock applicationClock(
+      @Value("${tacocloud.recommendation.zone:America/Mexico_City}")
+      String zone) {
+    return Clock.system(ZoneId.of(zone));
   }
 
   // To avoid 404s when using Angular HTML 5 routing

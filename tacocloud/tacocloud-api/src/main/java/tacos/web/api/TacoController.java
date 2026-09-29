@@ -28,6 +28,7 @@ import tacos.web.api.dto.ApiDtos.TacoCatalogResponse;
 import tacos.web.api.dto.ApiDtos.TacoClassificationResponse;
 import tacos.web.api.dto.ApiDtos.TacoDesignRequest;
 import tacos.web.api.dto.ApiDtos.TacoDesignValidationResponse;
+import tacos.web.api.dto.ApiDtos.DailyTacoResponse;
 import tacos.web.api.dto.ApiDtos.TacoSearchResponse;
 import tacos.web.api.error.ApiExceptionHandler.ApiException;
 import tacos.web.api.mapper.ApiMapper;
@@ -39,6 +40,7 @@ public class TacoController {
   private TacoRepository tacoRepo;
   private TacoClassificationService classificationService;
   private TacoDesignValidator designValidator;
+  private DailyTacoService dailyTacoService;
   private int maxPageSize = 50;
 
   private static final Set<String> SORT_FIELDS =
@@ -46,10 +48,17 @@ public class TacoController {
 
   public TacoController(TacoRepository tacoRepo,
       TacoClassificationService classificationService,
-      TacoDesignValidator designValidator) {
+      TacoDesignValidator designValidator,
+      DailyTacoService dailyTacoService) {
     this.tacoRepo = tacoRepo;
     this.classificationService = classificationService;
     this.designValidator = designValidator;
+    this.dailyTacoService = dailyTacoService;
+  }
+
+  @GetMapping("/today")
+  public Mono<DailyTacoResponse> tacoOfTheDay() {
+    return dailyTacoService.recommend().map(ApiMapper::toResponse);
   }
 
   @Value("${tacocloud.search.max-page-size:50}")

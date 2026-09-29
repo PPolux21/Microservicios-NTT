@@ -49,3 +49,22 @@
         aria-label="Remove favorite">♥</button>
   </div>
 </div>
+
+<h2>My orders</h2>
+<div class="recentsblock">
+  <div class="tacoblock" *ngFor="let order of myOrders">
+    <div class="tacoName">Order {{order.id}}</div>
+    <div>{{order.placedAt | date}} — {{order.total}} {{order.currency}}</div>
+    <button type="button" (click)="showOrder(order.id)">View details</button>
+  </div>
+</div>
+
+<div *ngIf="selectedOrder">
+  <h3>Order {{selectedOrder.id}}</h3>
+  <ul>
+    <li *ngFor="let item of selectedOrder.items">
+      {{item.quantity}} × {{item.taco.name}} — {{item.subtotal}} {{selectedOrder.currency}}
+    </li>
+  </ul>
+  <strong>Total: {{selectedOrder.total}} {{selectedOrder.currency}}</strong>
+</div>

@@ -11,6 +11,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 
@@ -35,6 +37,8 @@ import tacos.data.OrderRepository;
 import tacos.data.PaymentMethodRepository;
 import tacos.data.UserRepository;
 import tacos.messaging.OrderMessagingService;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 
 @Service
 public class OrderService {
@@ -277,23 +281,6 @@ public class OrderService {
                 .thenReturn(savedOrder));
   }
 
-  public Flux<TacoOrder> findOrdersFor(Authentication authentication) {
-
-    if (authentication == null) {
-      return Flux.empty();
-    }
-
-    if (hasRole(authentication,"ROLE_ADMIN")) {
-      return repo.findAll();
-    }
-
-    return userRepo
-        .findByUsername(
-            authentication.getName())
-        .flatMapMany(user ->
-            repo.findByUserOrderByPlacedAtDesc(user,Pageable.unpaged()));
-  }
-
   public boolean canAccessOrder(TacoOrder order,
     Authentication authentication) {
 
@@ -306,12 +293,75 @@ public class OrderService {
       return true;
     }
 
-    return order.getUser() != null
-        && order.getUser()
-            .getUsername() != null
-        && order.getUser()
-            .getUsername()
-            .equals(authentication.getName());
+    if (order.getUser() != null
+        && order.getUser().getUsername() != null) {
+      return order.getUser().getUsername().equals(authentication.getName());
+    }
+    return false;
+  }
+
+  public Mono<OrderHistoryPage> findOwnOrderHistory(
+      Authentication authentication,int page,int size) {
+    return currentUser(authentication)
+        .flatMap(user -> findOrderHistory(user.getId(),page,size));
+  }
+
+  public Mono<TacoOrder> findOwnOrder(String orderId,
+      Authentication authentication) {
+    return currentUser(authentication)
+        .flatMap(user -> repo.findByIdAndUserId(orderId,user.getId()))
+        .switchIfEmpty(Mono.error(ApiException.notFound(
+            "ORDER_NOT_FOUND","Order does not exist.")));
+  }
+
+  public Mono<OrderHistoryPage> findAdminOrderHistory(
+      String userId,int page,int size) {
+    Pageable pageable = historyPageable(page,size);
+    Flux<TacoOrder> orders = userId == null || userId.trim().isEmpty()
+        ? repo.findAllBy(pageable)
+        : repo.findByUserId(userId.trim(),pageable);
+    Mono<Long> count = userId == null || userId.trim().isEmpty()
+        ? repo.count()
+        : repo.countByUserId(userId.trim());
+    return orders.collectList().zipWith(count)
+        .map(result -> new OrderHistoryPage(
+            result.getT1(),page,size,result.getT2()));
+  }
+
+  public Mono<TacoOrder> findAccessibleOrder(String orderId,
+      Authentication authentication) {
+    if (authentication != null && hasRole(authentication,"ROLE_ADMIN")) {
+      return repo.findById(orderId)
+          .switchIfEmpty(Mono.error(ApiException.notFound(
+              "ORDER_NOT_FOUND","Order does not exist.")));
+    }
+    return findOwnOrder(orderId,authentication);
+  }
+
+  private Mono<OrderHistoryPage> findOrderHistory(
+      String userId,int page,int size) {
+    Pageable pageable = historyPageable(page,size);
+    return repo.findByUserId(userId,pageable).collectList()
+        .zipWith(repo.countByUserId(userId))
+        .map(result -> new OrderHistoryPage(
+            result.getT1(),page,size,result.getT2()));
+  }
+
+  private Pageable historyPageable(int page,int size) {
+    Sort sort = Sort.by(Sort.Direction.DESC,"placedAt")
+        .and(Sort.by(Sort.Direction.ASC,"id"));
+    return PageRequest.of(page,size,sort);
+  }
+
+  private Mono<User> currentUser(Authentication authentication) {
+    if (authentication == null || !authentication.isAuthenticated()) {
+      return Mono.error(new ApiException(
+          HttpStatus.UNAUTHORIZED,"AUTHENTICATION_REQUIRED",
+          "Authentication is required."));
+    }
+    return userRepo.findByUsername(authentication.getName())
+        .switchIfEmpty(Mono.error(ApiException.notFound(
+            "USER_NOT_FOUND","Authenticated user does not exist.")));
   }
 
   public Mono<Void> cancelOrder(TacoOrder order) {
@@ -333,5 +383,20 @@ public class OrderService {
         .stream()
         .anyMatch(authority ->
             role.equals(authority.getAuthority()));
+  }
+
+  @Data
+  @AllArgsConstructor
+  public static class OrderHistoryPage {
+    private List<TacoOrder> items;
+    private int page;
+    private int size;
+    private long totalElements;
+
+    public int getTotalPages() {
+      return size == 0
+          ? 0
+          : (int) ((totalElements + size - 1) / size);
+    }
   }
 }

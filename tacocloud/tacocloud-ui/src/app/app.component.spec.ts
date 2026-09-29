@@ -170,7 +170,8 @@ describe('AppComponent', () => {
     const service: any = {
       getRecentTacos: () => Observable.of({items: [{id: 'TACO-1'}]}),
       getFavorites: () => Observable.of({items: [{id: 'TACO-1'}]}),
-      getTopTacos: () => Observable.of([])
+      getTopTacos: () => Observable.of([]),
+      getMyOrders: () => Observable.of({items: []})
     };
     const component = new RecentTacosComponent(service);
 
@@ -178,6 +179,27 @@ describe('AppComponent', () => {
 
     expect(component.isFavorite('TACO-1')).toBe(true);
     expect(component.favoriteTacos[0].id).toBe('TACO-1');
+  });
+
+  it('should load private order history and detail without sending userId', () => {
+    const requests: string[] = [];
+    const apiService: any = {
+      get: (path: string) => {
+        requests.push(path);
+        const body = path.indexOf('/ORDER-1') >= 0
+          ? {id: 'ORDER-1', items: []}
+          : {items: [{id: 'ORDER-1'}]};
+        return Observable.of({json: () => body});
+      }
+    };
+    const service = new RecentTacosService(apiService);
+
+    service.getMyOrders().subscribe(page => expect(page.items[0].id).toBe('ORDER-1'));
+    service.getMyOrder('ORDER-1').subscribe(order => expect(order.id).toBe('ORDER-1'));
+
+    expect(requests[0]).toBe('/api/users/me/orders?page=0&size=10');
+    expect(requests[1]).toBe('/api/users/me/orders/ORDER-1');
+    expect(JSON.stringify(requests)).not.toContain('userId');
   });
 
   it('should rate with score only and reload aggregate ranking', () => {

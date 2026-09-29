@@ -7,7 +7,6 @@ import javax.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,7 +16,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import tacos.TacoOrder;
 import tacos.web.api.dto.ApiDtos.OrderCreateRequest;
@@ -51,14 +49,6 @@ public class OrderApiController {
     this.repo = repo;
     this.orderMessages = orderMessages;
     this.orderService = orderService;
-  }
-
-  @GetMapping
-  public Flux<OrderResponse> allOrders(Authentication authentication) {
-
-    return orderService
-      .findOrdersFor(authentication)
-      .map(ApiMapper::toResponse);
   }
 
   @PostMapping(consumes="application/json")
@@ -99,17 +89,8 @@ public class OrderApiController {
         ApiException.badRequest("UNSUPPORTED_FIELDS","The request contains unsupported fields."));
     }
 
-    return repo.findById(orderId)
-      .switchIfEmpty(
-        Mono.error(
-          ApiException.notFound("ORDER_NOT_FOUND","Order does not exist.")))
+    return orderService.findAccessibleOrder(orderId,authentication)
       .flatMap(existingOrder -> {
-
-        if (!orderService.canAccessOrder(existingOrder,authentication)) {
-          return Mono.error(
-            ApiException.forbidden("ORDER_FORBIDDEN","You cannot modify this order."));
-        }
-
         existingOrder.setDeliveryName(request.getDeliveryName());
 
         existingOrder.setDeliveryStreet(request.getDeliveryStreet());
@@ -137,16 +118,8 @@ public class OrderApiController {
         ApiException.badRequest("UNSUPPORTED_FIELDS","The request contains unsupported fields."));
     }
 
-    return repo.findById(orderId)
-      .switchIfEmpty(
-        Mono.error(
-          ApiException.notFound("ORDER_NOT_FOUND","Order does not exist.")))
+    return orderService.findAccessibleOrder(orderId,authentication)
       .flatMap(order -> {
-        if (!orderService.canAccessOrder(order,authentication)) {
-          return Mono.error(
-            ApiException.forbidden("ORDER_FORBIDDEN","You cannot modify this order."));
-        }
-
         if (patch.getDeliveryName() != null) {
           order.setDeliveryName(patch.getDeliveryName());
         }
@@ -177,16 +150,8 @@ public class OrderApiController {
   public Mono<ResponseEntity<Void>>deleteOrder(@PathVariable("orderId") String orderId,
         Authentication authentication) {
 
-    return repo.findById(orderId)
-      .switchIfEmpty(
-        Mono.error(
-          ApiException.notFound("ORDER_NOT_FOUND","Order does not exist.")))
+    return orderService.findAccessibleOrder(orderId,authentication)
       .flatMap(order -> {
-        if (!orderService.canAccessOrder(order,authentication)) {
-          return Mono.error(
-            ApiException.forbidden("ORDER_FORBIDDEN","You cannot delete this order."));
-        }
-
         if (order.getStatus() == TacoOrder.Status.PREPARING) {
 
           return Mono.error(

@@ -63,8 +63,6 @@ public class OrderApiControllerTest {
 
     User owner = org.mockito.Mockito.mock(User.class);
 
-    when(owner.getUsername()).thenReturn("jose");
-
     existingOrder.setUser(owner);
 
     OrderDeliveryRequest patch = new OrderDeliveryRequest();
@@ -73,11 +71,8 @@ public class OrderApiControllerTest {
 
     Authentication authentication = org.mockito.Mockito.mock(Authentication.class);
 
-    when(authentication.getName()).thenReturn("jose");
-
-    when(authentication.getAuthorities()).thenReturn(Collections.emptyList());
-
-    when(repo.findById("ORDER-1")).thenReturn(Mono.just(existingOrder));
+    when(orderService.findAccessibleOrder("ORDER-1",authentication))
+        .thenReturn(Mono.just(existingOrder));
 
     when(repo.save(existingOrder)).thenReturn(Mono.just(existingOrder));
 
@@ -86,19 +81,12 @@ public class OrderApiControllerTest {
         "ORDER-1",
         patch,
         authentication))
-        .expectErrorSatisfies(error -> {
-
-        assertTrue(
-            error instanceof ApiException);
-
-        ApiException exception = (ApiException) error;
-
-        assertEquals(
-            HttpStatus.BAD_REQUEST,
-            exception.getStatus());
+        .assertNext(response -> {
+          assertEquals(HttpStatus.OK,response.getStatusCode());
+          assertEquals("AGS",existingOrder.getDeliveryState());
+          assertEquals("20230",existingOrder.getDeliveryZip());
         })
-
-      .verify();
+        .verifyComplete();
 
     verify(repo).save(existingOrder);
   }
@@ -152,8 +140,6 @@ public class OrderApiControllerTest {
   public void shouldEnforceOwnershipAndReturnNotFoundWhenMissing() {
     User otherUser = org.mockito.Mockito.mock(User.class);
 
-    when(otherUser.getUsername()) .thenReturn("otherUser");
-
     TacoOrder foreignOrder = new TacoOrder();
 
     foreignOrder.setUser(otherUser);
@@ -165,11 +151,9 @@ public class OrderApiControllerTest {
 
     Authentication authentication = org.mockito.Mockito.mock(Authentication.class);
 
-    when(authentication.getName()).thenReturn("jose");
-
-    when(authentication.getAuthorities()).thenReturn(Collections.emptyList());
-
-    when(repo.findById("ORDER-FOREIGN")).thenReturn(Mono.just(foreignOrder));
+    when(orderService.findAccessibleOrder("ORDER-FOREIGN",authentication))
+        .thenReturn(Mono.error(ApiException.notFound(
+            "ORDER_NOT_FOUND","Order does not exist.")));
 
     StepVerifier.create(
       controller.patchOrder(
@@ -182,12 +166,14 @@ public class OrderApiControllerTest {
         ApiException exception =
             (ApiException) error;
         assertEquals(
-            HttpStatus.BAD_REQUEST,
+            HttpStatus.NOT_FOUND,
             exception.getStatus());
       })
       .verify();
 
-    when(repo.findById("ORDER-MISSING")).thenReturn(Mono.empty());
+    when(orderService.findAccessibleOrder("ORDER-MISSING",authentication))
+        .thenReturn(Mono.error(ApiException.notFound(
+            "ORDER_NOT_FOUND","Order does not exist.")));
 
     StepVerifier.create(
       controller.patchOrder(
@@ -203,7 +189,7 @@ public class OrderApiControllerTest {
             (ApiException) error;
 
         assertEquals(
-            HttpStatus.BAD_REQUEST,
+            HttpStatus.NOT_FOUND,
             exception.getStatus());
       })
 
@@ -234,11 +220,11 @@ public class OrderApiControllerTest {
             "ORDER-1",
             request,
             authentication))
-        .assertNext(response ->
-            assertEquals(
-                HttpStatus.BAD_REQUEST,
-                response.getStatusCode()))
-        .verifyComplete();
+        .expectErrorSatisfies(error -> {
+          assertTrue(error instanceof ApiException);
+          assertEquals(HttpStatus.BAD_REQUEST,((ApiException) error).getStatus());
+        })
+        .verify();
 
     verify(repo, never()).findById(anyString());
 
@@ -267,8 +253,8 @@ public class OrderApiControllerTest {
     Authentication authentication = org.mockito.Mockito.mock(Authentication.class);
 
     // La orden existe y pertenece al usuario.
-    when(repo.findById("ORDER-1")).thenReturn(Mono.just(existingOrder));
-    when(orderService.canAccessOrder(existingOrder,authentication)).thenReturn(true);
+    when(orderService.findAccessibleOrder("ORDER-1",authentication))
+        .thenReturn(Mono.just(existingOrder));
     when(orderService.cancelOrder(existingOrder)).thenReturn(Mono.empty());
 
     StepVerifier.create(
@@ -280,7 +266,9 @@ public class OrderApiControllerTest {
         .verifyComplete();
 
     //La orden no existe.
-    when(repo.findById("ORDER-MISSING")).thenReturn(Mono.empty());
+    when(orderService.findAccessibleOrder("ORDER-MISSING",authentication))
+        .thenReturn(Mono.error(ApiException.notFound(
+            "ORDER_NOT_FOUND","Order does not exist.")));
 
     StepVerifier.create(
       controller.deleteOrder(
@@ -295,7 +283,9 @@ public class OrderApiControllerTest {
 
     // La orden existe pero pertenece a otro usuario.
  
-    when(repo.findById("ORDER-FOREIGN")).thenReturn(Mono.just(foreignOrder));
+    when(orderService.findAccessibleOrder("ORDER-FOREIGN",authentication))
+        .thenReturn(Mono.error(ApiException.notFound(
+            "ORDER_NOT_FOUND","Order does not exist.")));
 
     StepVerifier.create(
         controller.deleteOrder(
@@ -303,7 +293,7 @@ public class OrderApiControllerTest {
             authentication))
         .expectErrorSatisfies(error -> {
           assertTrue(error instanceof ApiException);
-          assertEquals(HttpStatus.FORBIDDEN,((ApiException) error).getStatus());
+          assertEquals(HttpStatus.NOT_FOUND,((ApiException) error).getStatus());
         })
         .verify();
 
@@ -321,8 +311,8 @@ public class OrderApiControllerTest {
 
     Authentication authentication = org.mockito.Mockito.mock(Authentication.class);
 
-    when(repo.findById("ORDER-PREPARING")).thenReturn(Mono.just(order));
-    when(orderService.canAccessOrder(order,authentication)).thenReturn(true);
+    when(orderService.findAccessibleOrder("ORDER-PREPARING",authentication))
+        .thenReturn(Mono.just(order));
 
     StepVerifier.create(
         controller.deleteOrder(

@@ -49,4 +49,16 @@ export class RecentTacosService {
         .map(response => response.json());
   }
 
+  getMyOrders(page: number = 0, size: number = 10) {
+    return this.apiService
+        .get('/api/users/me/orders?page=' + page + '&size=' + size)
+        .map(response => response.json());
+  }
+
+  getMyOrder(orderId: string) {
+    return this.apiService
+        .get('/api/users/me/orders/' + encodeURIComponent(orderId))
+        .map(response => response.json());
+  }
+
 }

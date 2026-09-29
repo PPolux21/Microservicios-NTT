@@ -13,6 +13,8 @@ export class RecentTacosComponent implements OnInit {
   favoriteTacos: any[] = [];
   favoriteIds: {[id: string]: boolean} = {};
   topTacos: any[] = [];
+  myOrders: any[] = [];
+  selectedOrder: any = null;
   ratingScores: number[] = [1, 2, 3, 4, 5];
 
   constructor(private recentTacosService: RecentTacosService) { }
@@ -22,6 +24,7 @@ export class RecentTacosComponent implements OnInit {
         .subscribe(page => this.recentTacos = page.items);
     this.reloadFavorites();
     this.reloadTopTacos();
+    this.reloadMyOrders();
   }
 
   reloadFavorites() {
@@ -52,5 +55,15 @@ export class RecentTacosComponent implements OnInit {
   reloadTopTacos() {
     this.recentTacosService.getTopTacos()
         .subscribe(ratings => this.topTacos = ratings);
+  }
+
+  reloadMyOrders() {
+    this.recentTacosService.getMyOrders()
+        .subscribe(page => this.myOrders = page.items);
+  }
+
+  showOrder(orderId: string) {
+    this.recentTacosService.getMyOrder(orderId)
+        .subscribe(order => this.selectedOrder = order);
   }
 }

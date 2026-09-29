@@ -25,6 +25,8 @@ import tacos.web.api.dto.ApiDtos.OrderQuoteRequest;
 import tacos.web.api.dto.ApiDtos.OrderQuoteResponse;
 import tacos.web.api.dto.ApiDtos.OrderItemResponse;
 import tacos.web.api.dto.ApiDtos.OrderResponse;
+import tacos.web.api.dto.ApiDtos.OrderSummaryResponse;
+import tacos.web.api.dto.ApiDtos.OrderHistoryPageResponse;
 import tacos.web.api.dto.ApiDtos.OrderTacoResponse;
 import tacos.web.api.dto.ApiDtos.TacoCatalogResponse;
 import tacos.web.api.dto.ApiDtos.TacoClassificationResponse;
@@ -38,6 +40,7 @@ import tacos.web.api.TacoClassificationService;
 import tacos.web.api.TacoDesignValidator.ValidationResult;
 import tacos.web.api.DailyTacoService.DailyTacoRecommendation;
 import tacos.web.api.FavoriteService.FavoritePage;
+import tacos.web.api.OrderService.OrderHistoryPage;
 import tacos.web.api.TacoRatingService.RankedTaco;
 import tacos.data.TacoSearchRepository.TacoSearchPage;
 
@@ -156,6 +159,25 @@ public final class ApiMapper {
         order.getDiscountAmount(),
         order.getTotal(),
         order.getCurrency());
+  }
+
+  public static OrderSummaryResponse toSummaryResponse(TacoOrder order) {
+    int itemCount = order.getItems() == null
+        ? 0
+        : order.getItems().stream().mapToInt(OrderItem::getQuantity).sum();
+    return new OrderSummaryResponse(
+        order.getId(),order.getPlacedAt(),
+        order.getStatus() != null ? order.getStatus().name() : null,
+        itemCount,order.getTotal(),order.getCurrency());
+  }
+
+  public static OrderHistoryPageResponse toResponse(OrderHistoryPage page) {
+    return new OrderHistoryPageResponse(
+        page.getItems().stream()
+            .map(ApiMapper::toSummaryResponse)
+            .collect(Collectors.toList()),
+        page.getPage(),page.getSize(),page.getTotalElements(),
+        page.getTotalPages());
   }
 
   public static OrderQuoteResponse toResponse(OrderQuote quote) {

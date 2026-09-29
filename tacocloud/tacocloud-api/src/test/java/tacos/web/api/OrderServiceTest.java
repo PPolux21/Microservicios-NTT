@@ -260,6 +260,7 @@ public class OrderServiceTest {
     User ana = Mockito.mock(User.class);
 
     when(jose.getUsername()).thenReturn("jose");
+    when(jose.getId()).thenReturn("U-JOSE");
 
     when(ana.getUsername()).thenReturn("ana");
 
@@ -277,6 +278,7 @@ public class OrderServiceTest {
 
     when(userAuth.getName())
         .thenReturn("jose");
+    when(userAuth.isAuthenticated()).thenReturn(true);
 
     doReturn(
       Collections.singletonList(
@@ -291,15 +293,17 @@ public class OrderServiceTest {
 
 
     when(
-        repo.findByUserOrderByPlacedAtDesc(
-            Mockito.eq(jose),
+        repo.findByUserId(
+            Mockito.eq("U-JOSE"),
             Mockito.any(Pageable.class)))
 
         .thenReturn(Flux.just(joseOrder));
+    when(repo.countByUserId("U-JOSE")).thenReturn(Mono.just(1L));
 
     StepVerifier.create(
-        service.findOrdersFor(userAuth))
-        .expectNext(joseOrder)
+        service.findOwnOrderHistory(userAuth,0,20))
+        .assertNext(page -> assertEquals(
+            Collections.singletonList(joseOrder),page.getItems()))
         .verifyComplete();
 
     assertFalse(
@@ -314,11 +318,13 @@ public class OrderServiceTest {
       .when(adminAuth)
       .getAuthorities();
 
-    when(repo.findAll())
+    when(repo.findAllBy(Mockito.any(Pageable.class)))
         .thenReturn(Flux.just(joseOrder,anaOrder));
+    when(repo.count()).thenReturn(Mono.just(2L));
 
-    StepVerifier.create(service.findOrdersFor(adminAuth))
-        .expectNext(joseOrder,anaOrder)
+    StepVerifier.create(service.findAdminOrderHistory(null,0,20))
+        .assertNext(page -> assertEquals(
+            Arrays.asList(joseOrder,anaOrder),page.getItems()))
         .verifyComplete();
 
     assertTrue(service.canAccessOrder(anaOrder,adminAuth));

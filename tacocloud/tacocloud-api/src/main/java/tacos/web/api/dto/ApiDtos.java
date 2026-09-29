@@ -237,6 +237,45 @@ public final class ApiDtos {
     private String currency;
   }
 
+  @Data
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class OrderSummaryResponse {
+    private String id;
+    private Date placedAt;
+    private String status;
+    private int itemCount;
+    private BigDecimal total;
+    private String currency;
+  }
+
+  @Data
+  @NoArgsConstructor
+  public static class OrderHistoryQuery {
+    @Min(value=0,message="page must not be negative")
+    private int page = 0;
+
+    @Min(value=1,message="size must be at least 1")
+    private int size = 20;
+  }
+
+  @Data
+  @NoArgsConstructor
+  public static class AdminOrderHistoryQuery extends OrderHistoryQuery {
+    private String userId;
+  }
+
+  @Data
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class OrderHistoryPageResponse {
+    private List<OrderSummaryResponse> items;
+    private int page;
+    private int size;
+    private long totalElements;
+    private int totalPages;
+  }
+
 
   @Data
   @AllArgsConstructor

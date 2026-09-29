@@ -184,6 +184,25 @@ public class SecurityConfigTest {
         .andExpect(status().isOk());
   }
 
+  @Test
+  public void shouldSeparatePrivateAndAdministrativeOrderHistory()
+      throws Exception {
+    mvc.perform(get("/api/users/me/orders"))
+        .andExpect(status().isUnauthorized());
+
+    mvc.perform(get("/api/users/me/orders")
+            .with(user("jose").roles("USER")))
+        .andExpect(status().isOk());
+
+    mvc.perform(get("/api/admin/orders")
+            .with(user("jose").roles("USER")))
+        .andExpect(status().isForbidden());
+
+    mvc.perform(get("/api/admin/orders")
+            .with(user("admin").roles("ADMIN")))
+        .andExpect(status().isOk());
+  }
+
 
   @Test
   public void shouldProtectActuatorAndDataRest()
@@ -305,6 +324,16 @@ public class SecurityConfigTest {
 
     @GetMapping("/api/tacos/top")
     public String topTacos() {
+      return "ok";
+    }
+
+    @GetMapping("/api/users/me/orders")
+    public String ownOrders() {
+      return "ok";
+    }
+
+    @GetMapping("/api/admin/orders")
+    public String adminOrders() {
       return "ok";
     }
   }

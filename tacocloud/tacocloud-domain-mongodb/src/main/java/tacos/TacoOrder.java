@@ -9,7 +9,9 @@ import java.util.List;
 import javax.validation.constraints.Min;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Transient;
 import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -17,6 +19,8 @@ import lombok.NoArgsConstructor;
 
 @Data
 @Document
+@CompoundIndex(name="order_user_placed_id_idx",
+    def="{'userId':1,'placedAt':-1,'_id':1}")
 public class TacoOrder implements Serializable {
   private static final long serialVersionUID = 1L;
 
@@ -24,7 +28,15 @@ public class TacoOrder implements Serializable {
   private String id;
   private Date placedAt = new Date();
 
+  private String userId;
+
+  @Transient
   private User user;
+
+  public void setUser(User user) {
+    this.user = user;
+    this.userId = user != null ? user.getId() : null;
+  }
 
   private String deliveryName;
 

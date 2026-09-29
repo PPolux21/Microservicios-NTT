@@ -13,30 +13,57 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import tacos.Taco;
 import tacos.data.TacoRepository;
+import tacos.web.api.dto.ApiDtos.TacoCatalogResponse;
+import tacos.web.api.dto.ApiDtos.TacoClassificationResponse;
+import tacos.web.api.error.ApiExceptionHandler.ApiException;
+import tacos.web.api.mapper.ApiMapper;
 
 @RestController
 @RequestMapping(path = "/api/tacos", produces = "application/json")
 public class TacoController {
   private TacoRepository tacoRepo;
+  private TacoClassificationService classificationService;
 
-  public TacoController(TacoRepository tacoRepo) {
+  public TacoController(TacoRepository tacoRepo,
+      TacoClassificationService classificationService) {
     this.tacoRepo = tacoRepo;
+    this.classificationService = classificationService;
   }
 
   @GetMapping(params="recent")
-  public Flux<Taco> recentTacos() {
-    return tacoRepo.findAll().take(12);
+  public Flux<TacoCatalogResponse> recentTacos() {
+    return tacoRepo.findAll().take(12)
+        .concatMap(classificationService::classify)
+        .map(ApiMapper::toResponse);
   }
 
   @PostMapping(consumes = "application/json")
   @ResponseStatus(HttpStatus.CREATED)
-  public Mono<Taco> postTaco(@RequestBody Taco taco) {
-    return tacoRepo.save(taco);
+  public Mono<TacoCatalogResponse> postTaco(@RequestBody Taco taco) {
+    return tacoRepo.save(taco)
+        .flatMap(classificationService::classify)
+        .map(ApiMapper::toResponse);
   }
 
   @GetMapping("/{id}")
-  public Mono<Taco> tacoById(@PathVariable("id") String id) {
-    return tacoRepo.findById(id);
+  public Mono<TacoCatalogResponse> tacoById(@PathVariable("id") String id) {
+    return findTaco(id)
+        .flatMap(classificationService::classify)
+        .map(ApiMapper::toResponse);
+  }
+
+  @GetMapping("/{id}/classification")
+  public Mono<TacoClassificationResponse> classification(
+      @PathVariable("id") String id) {
+    return findTaco(id)
+        .flatMap(classificationService::classify)
+        .map(ApiMapper::toClassificationResponse);
+  }
+
+  private Mono<Taco> findTaco(String id) {
+    return tacoRepo.findById(id)
+        .switchIfEmpty(Mono.error(ApiException.notFound(
+            "TACO_NOT_FOUND","Taco does not exist.")));
   }
 
 }

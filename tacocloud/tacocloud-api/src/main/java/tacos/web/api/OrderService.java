@@ -28,6 +28,7 @@ import tacos.web.api.mapper.ApiMapper.OrderQuote;
 import tacos.web.api.mapper.ApiMapper.OrderQuoteCommand;
 import tacos.web.api.coupon.CouponService;
 import tacos.web.api.coupon.CouponService.CouponApplication;
+import tacos.web.api.TacoClassificationService.ClassifiedTaco;
 import tacos.web.api.error.ApiExceptionHandler.ApiException;
 import tacos.data.IngredientRepository;
 import tacos.data.OrderRepository;
@@ -50,6 +51,7 @@ public class OrderService {
   private IngredientRepository ingredientRepo;
   private CouponService couponService;
   private InventoryService inventoryService;
+  private TacoClassificationService classificationService;
   private int maxQuantity = 10;
 
   public OrderService(
@@ -60,7 +62,8 @@ public class OrderService {
       PaymentMethodRepository paymentMethodRepo,
       IngredientRepository ingredientRepo,
       CouponService couponService,
-      InventoryService inventoryService) {
+      InventoryService inventoryService,
+      TacoClassificationService classificationService) {
 
     this.repo = repo;
     this.orderMessages = orderMessages;
@@ -70,6 +73,7 @@ public class OrderService {
     this.ingredientRepo = ingredientRepo;
     this.couponService = couponService;
     this.inventoryService = inventoryService;
+    this.classificationService = classificationService;
   }
 
   @Value("${tacocloud.orders.max-quantity:10}")
@@ -147,11 +151,19 @@ public class OrderService {
   public Mono<OrderQuote> quote(OrderQuoteCommand command) {
 
     return priceItems(command.getItems())
-        .map(this::subtotal)
-        .map(value -> couponService.evaluate(command.getCouponCode(),value))
-        .map(coupon -> new OrderQuote(
-            coupon.isApplicable(),coupon.getSubtotal(),coupon.getDiscount(),
-            coupon.getTotal(),ORDER_CURRENCY));
+        .map(items -> {
+          CouponApplication coupon = couponService.evaluate(
+              command.getCouponCode(),subtotal(items));
+          List<ClassifiedTaco> classifications = items.stream()
+              .map(item -> new ClassifiedTaco(
+                  item.getTaco(),item.getTaco().getIngredients(),
+                  classificationService.classifyIngredients(
+                      item.getTaco().getIngredients())))
+              .collect(java.util.stream.Collectors.toList());
+          return new OrderQuote(
+              coupon.isApplicable(),coupon.getSubtotal(),coupon.getDiscount(),
+              coupon.getTotal(),ORDER_CURRENCY,classifications);
+        });
   }
 
   private Mono<List<OrderItem>> priceItems(List<OrderItemCommand> commandItems) {

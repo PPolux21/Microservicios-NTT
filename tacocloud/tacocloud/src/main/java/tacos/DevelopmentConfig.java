@@ -2,6 +2,8 @@ package tacos;
 
 import java.math.BigDecimal;
 import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.Set;
 
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
@@ -10,6 +12,9 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import tacos.Ingredient.Type;
+import tacos.Ingredient.Allergen;
+import tacos.Ingredient.DietaryTag;
+import tacos.Ingredient.SpiceLevel;
 import tacos.data.IngredientRepository;
 import tacos.data.PaymentMethodRepository;
 import tacos.data.TacoRepository;
@@ -27,16 +32,29 @@ public class DevelopmentConfig {
     return new CommandLineRunner() {
       @Override
       public void run(String... args) throws Exception {
-        Ingredient flourTortilla = saveAnIngredient("FLTO", "Flour Tortilla", Type.WRAP,"0.75",120,20);
-        Ingredient cornTortilla = saveAnIngredient("COTO", "Corn Tortilla", Type.WRAP,"0.65",120,20);
-        Ingredient groundBeef = saveAnIngredient("GRBF", "Ground Beef", Type.PROTEIN,"2.25",80,15);
-        Ingredient carnitas = saveAnIngredient("CARN", "Carnitas", Type.PROTEIN,"2.40",70,15);
-        Ingredient tomatoes = saveAnIngredient("TMTO", "Diced Tomatoes", Type.VEGGIES,"0.45",90,15);
-        Ingredient lettuce = saveAnIngredient("LETC", "Lettuce", Type.VEGGIES,"0.40",90,15);
-        Ingredient cheddar = saveAnIngredient("CHED", "Cheddar", Type.CHEESE,"0.85",75,10);
-        Ingredient jack = saveAnIngredient("JACK", "Monterrey Jack", Type.CHEESE,"0.90",75,10);
-        Ingredient salsa = saveAnIngredient("SLSA", "Salsa", Type.SAUCE,"0.55",100,15);
-        Ingredient sourCream = saveAnIngredient("SRCR", "Sour Cream", Type.SAUCE,"0.60",85,15);
+        Set<DietaryTag> plantTags = EnumSet.allOf(DietaryTag.class);
+        Set<DietaryTag> vegetarianTags = EnumSet.of(
+            DietaryTag.VEGETARIAN,DietaryTag.GLUTEN_FREE);
+        Ingredient flourTortilla = saveAnIngredient("FLTO", "Flour Tortilla", Type.WRAP,"0.75",120,20,
+            EnumSet.of(DietaryTag.VEGAN,DietaryTag.VEGETARIAN),EnumSet.of(Allergen.GLUTEN),SpiceLevel.NONE);
+        Ingredient cornTortilla = saveAnIngredient("COTO", "Corn Tortilla", Type.WRAP,"0.65",120,20,
+            plantTags,EnumSet.noneOf(Allergen.class),SpiceLevel.NONE);
+        Ingredient groundBeef = saveAnIngredient("GRBF", "Ground Beef", Type.PROTEIN,"2.25",80,15,
+            EnumSet.noneOf(DietaryTag.class),EnumSet.noneOf(Allergen.class),SpiceLevel.MILD);
+        Ingredient carnitas = saveAnIngredient("CARN", "Carnitas", Type.PROTEIN,"2.40",70,15,
+            EnumSet.noneOf(DietaryTag.class),EnumSet.noneOf(Allergen.class),SpiceLevel.MILD);
+        Ingredient tomatoes = saveAnIngredient("TMTO", "Diced Tomatoes", Type.VEGGIES,"0.45",90,15,
+            plantTags,EnumSet.noneOf(Allergen.class),SpiceLevel.NONE);
+        Ingredient lettuce = saveAnIngredient("LETC", "Lettuce", Type.VEGGIES,"0.40",90,15,
+            plantTags,EnumSet.noneOf(Allergen.class),SpiceLevel.NONE);
+        Ingredient cheddar = saveAnIngredient("CHED", "Cheddar", Type.CHEESE,"0.85",75,10,
+            vegetarianTags,EnumSet.of(Allergen.DAIRY),SpiceLevel.NONE);
+        Ingredient jack = saveAnIngredient("JACK", "Monterrey Jack", Type.CHEESE,"0.90",75,10,
+            vegetarianTags,EnumSet.of(Allergen.DAIRY),SpiceLevel.NONE);
+        Ingredient salsa = saveAnIngredient("SLSA", "Salsa", Type.SAUCE,"0.55",100,15,
+            plantTags,EnumSet.noneOf(Allergen.class),SpiceLevel.MEDIUM);
+        Ingredient sourCream = saveAnIngredient("SRCR", "Sour Cream", Type.SAUCE,"0.60",85,15,
+            vegetarianTags,EnumSet.of(Allergen.DAIRY),SpiceLevel.NONE);
         
 //        UserUDT u = new UserUDT(username, fullname, phoneNumber)
         
@@ -74,9 +92,18 @@ public class DevelopmentConfig {
       }
 
       private Ingredient saveAnIngredient(String id,String name,Type type,
-          String unitPrice,int stockOnHand,int reorderLevel) {
+          String unitPrice,int stockOnHand,int reorderLevel,
+          Set<DietaryTag> dietaryTags,Set<Allergen> allergens,
+          SpiceLevel spiceLevel) {
         Ingredient ingredient = new Ingredient(
             id,name,type,new BigDecimal(unitPrice),true,stockOnHand,reorderLevel);
+        ingredient.setDietaryTags(dietaryTags.isEmpty()
+            ? EnumSet.noneOf(DietaryTag.class)
+            : EnumSet.copyOf(dietaryTags));
+        ingredient.setAllergens(allergens.isEmpty()
+            ? EnumSet.noneOf(Allergen.class)
+            : EnumSet.copyOf(allergens));
+        ingredient.setSpiceLevel(spiceLevel);
         repo.save(ingredient).subscribe();
         return ingredient;
       }

@@ -354,7 +354,7 @@ public class OrderApiControllerTest {
     when(orderService.quote(any(OrderQuoteCommand.class)))
         .thenReturn(Mono.just(new OrderQuote(
             true,new BigDecimal("20.00"),new BigDecimal("2.00"),
-            new BigDecimal("18.00"),"MXN")));
+            new BigDecimal("18.00"),"MXN",Collections.emptyList())));
 
     StepVerifier.create(controller.quote(request))
         .assertNext(response -> {

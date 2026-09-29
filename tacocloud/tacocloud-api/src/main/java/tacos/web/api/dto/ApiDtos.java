@@ -3,7 +3,9 @@ package tacos.web.api.dto;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
 import javax.validation.Valid;
 import javax.validation.constraints.NotBlank;
@@ -21,6 +23,9 @@ import lombok.Data;
 import lombok.ToString;
 import lombok.NoArgsConstructor;
 import tacos.Ingredient.Type;
+import tacos.Ingredient.Allergen;
+import tacos.Ingredient.DietaryTag;
+import tacos.Ingredient.SpiceLevel;
 
 public final class ApiDtos {
 
@@ -41,10 +46,22 @@ public final class ApiDtos {
 
     @NotNull(message="type is required")
     private Type type;
+
+    @NotNull(message="dietaryTags is required")
+    private Set<DietaryTag> dietaryTags =
+        EnumSet.noneOf(DietaryTag.class);
+
+    @NotNull(message="allergens is required")
+    private Set<Allergen> allergens =
+        EnumSet.noneOf(Allergen.class);
+
+    @NotNull(message="spiceLevel is required")
+    private SpiceLevel spiceLevel = SpiceLevel.NONE;
   }
 
 
   @Data
+  @NoArgsConstructor
   @AllArgsConstructor
   public static class IngredientResponse {
 
@@ -53,6 +70,9 @@ public final class ApiDtos {
     private Type type;
     private BigDecimal unitPrice;
     private boolean available;
+    private Set<DietaryTag> dietaryTags;
+    private Set<Allergen> allergens;
+    private SpiceLevel spiceLevel;
   }
 
   @Data
@@ -102,6 +122,9 @@ public final class ApiDtos {
     private int stockOnHand;
     private int reorderLevel;
     private Long version;
+    private Set<DietaryTag> dietaryTags;
+    private Set<Allergen> allergens;
+    private SpiceLevel spiceLevel;
   }
 
   @Data
@@ -222,6 +245,34 @@ public final class ApiDtos {
     private BigDecimal discount;
     private BigDecimal total;
     private String currency;
+    private List<TacoClassificationResponse> classifications;
+  }
+
+
+  @Data
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class TacoClassificationResponse {
+
+    private String tacoId;
+    private String tacoName;
+    private Set<DietaryTag> dietaryTags;
+    private Set<Allergen> allergens;
+    private SpiceLevel spiceLevel;
+    private String disclaimer;
+  }
+
+
+  @Data
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class TacoCatalogResponse {
+
+    private String id;
+    private String name;
+    private Date createdAt;
+    private List<IngredientResponse> ingredients;
+    private TacoClassificationResponse classification;
   }
 
 

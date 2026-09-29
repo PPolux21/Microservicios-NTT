@@ -1,97 +1,181 @@
 package tacos.web.api;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.math.BigDecimal;
+import java.util.Arrays;
+import java.util.EnumSet;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 import tacos.Ingredient;
+import tacos.Ingredient.Allergen;
+import tacos.Ingredient.DietaryTag;
+import tacos.Ingredient.SpiceLevel;
 import tacos.Ingredient.Type;
 import tacos.Taco;
 import tacos.data.IngredientRepository;
 import tacos.data.TacoRepository;
+import tacos.web.api.dto.ApiDtos.TacoCatalogResponse;
+import tacos.web.api.error.ApiExceptionHandler.ApiException;
 
 public class TacoControllerTest {
 
   @Test
-  public void shouldReturnRecentTacos() {
-    Taco[] tacos = {
-        testTaco(1L), testTaco(2L),
-        testTaco(3L), testTaco(4L),
-        testTaco(5L), testTaco(6L),
-        testTaco(7L), testTaco(8L),
-        testTaco(9L), testTaco(10L),
-        testTaco(11L), testTaco(12L),
-        testTaco(13L), testTaco(14L),
-        testTaco(15L), testTaco(16L)};
-    Flux<Taco> tacoFlux = Flux.just(tacos);
+  public void shouldReturnRecentTacosWithDerivedClassification() {
+    Taco[] tacos = new Taco[16];
+    for (int index = 0; index < tacos.length; index++) {
+      tacos[index] = testTaco(String.valueOf(index + 1));
+    }
 
     TacoRepository tacoRepo = Mockito.mock(TacoRepository.class);
-    when(tacoRepo.findAll()).thenReturn(tacoFlux);
+    IngredientRepository ingredientRepo = Mockito.mock(IngredientRepository.class);
+    when(tacoRepo.findAll()).thenReturn(Flux.just(tacos));
+    when(ingredientRepo.findById("LETC"))
+        .thenReturn(Mono.just(plantIngredient("LETC")));
+    when(ingredientRepo.findById("SLSA"))
+        .thenReturn(Mono.just(spicyPlantIngredient()));
 
-    WebTestClient testClient = WebTestClient.bindToController(
-        new TacoController(tacoRepo))
-        .build();
-
-    testClient.get().uri("/api/tacos?recent")
+    client(tacoRepo,ingredientRepo).get().uri("/api/tacos?recent")
       .exchange()
       .expectStatus().isOk()
       .expectBody()
         .jsonPath("$").isArray()
-        .jsonPath("$").isNotEmpty()
-        .jsonPath("$[0].id").isEqualTo(tacos[0].getId().toString())
-        .jsonPath("$[0].name").isEqualTo("Taco 1")
-        .jsonPath("$[1].id").isEqualTo(tacos[1].getId().toString())
-        .jsonPath("$[1].name").isEqualTo("Taco 2")
-        .jsonPath("$[11].id").isEqualTo(tacos[11].getId().toString())
-        .jsonPath("$[11].name").isEqualTo("Taco 12")
+        .jsonPath("$[0].id").isEqualTo("1")
+        .jsonPath("$[0].classification.dietaryTags").isArray()
+        .jsonPath("$[0].classification.spiceLevel").isEqualTo("HOT")
+        .jsonPath("$[0].classification.disclaimer").isNotEmpty()
+        .jsonPath("$[11].id").isEqualTo("12")
         .jsonPath("$[12]").doesNotExist();
   }
 
   @Test
-  public void shouldSaveATaco() {
-    TacoRepository tacoRepo = Mockito.mock(
-                TacoRepository.class);
-    Mono<Taco> unsavedTacoMono = Mono.just(testTaco(null));
-    Taco savedTaco = testTaco(null);
-    Mono<Taco> savedTacoMono = Mono.just(savedTaco);
+  public void shouldIgnoreClientClassificationAndUsePersistedIngredients() {
+    TacoRepository tacoRepo = Mockito.mock(TacoRepository.class);
+    IngredientRepository ingredientRepo = Mockito.mock(IngredientRepository.class);
+    when(tacoRepo.save(any(Taco.class)))
+        .thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
 
-    when(tacoRepo.save(any())).thenReturn(savedTacoMono);
+    Ingredient meat = catalogIngredient("MEAT");
+    meat.setSpiceLevel(SpiceLevel.MILD);
+    when(ingredientRepo.findById("MEAT")).thenReturn(Mono.just(meat));
 
-    WebTestClient testClient = WebTestClient.bindToController(
-        new TacoController(tacoRepo)).build();
+    String manipulatedJson = "{"
+        + "\"name\":\"Fake Vegan Taco\","
+        + "\"dietaryTags\":[\"VEGAN\"],"
+        + "\"allergens\":[],"
+        + "\"spiceLevel\":\"NONE\","
+        + "\"ingredients\":[{\"id\":\"MEAT\","
+        + "\"dietaryTags\":[\"VEGAN\"],\"spiceLevel\":\"NONE\"}]}";
 
-    testClient.post()
-        .uri("/api/tacos")
+    client(tacoRepo,ingredientRepo).post().uri("/api/tacos")
         .contentType(MediaType.APPLICATION_JSON)
-        .body(unsavedTacoMono, Taco.class)
-      .exchange()
-      .expectStatus().isCreated()
-      .expectBody(Taco.class)
-        .isEqualTo(savedTaco);
+        .bodyValue(manipulatedJson)
+        .exchange()
+        .expectStatus().isCreated()
+        .expectBody(TacoCatalogResponse.class)
+        .value(response -> {
+          assertFalse(response.getClassification().getDietaryTags()
+              .contains(DietaryTag.VEGAN));
+          assertEquals(SpiceLevel.MILD,
+              response.getClassification().getSpiceLevel());
+        });
   }
 
-  private Taco testTaco(Long number) {
+  @Test
+  public void shouldReturnClassificationForExistingTaco() {
+    TacoRepository tacoRepo = Mockito.mock(TacoRepository.class);
+    IngredientRepository ingredientRepo = Mockito.mock(IngredientRepository.class);
+    Taco taco = testTaco("TACO-1");
+    when(tacoRepo.findById("TACO-1")).thenReturn(Mono.just(taco));
+    when(ingredientRepo.findById("LETC"))
+        .thenReturn(Mono.just(plantIngredient("LETC")));
+    when(ingredientRepo.findById("SLSA"))
+        .thenReturn(Mono.just(spicyPlantIngredient()));
+
+    client(tacoRepo,ingredientRepo).get()
+        .uri("/api/tacos/TACO-1/classification")
+        .exchange()
+        .expectStatus().isOk()
+        .expectBody()
+        .jsonPath("$.tacoId").isEqualTo("TACO-1")
+        .jsonPath("$.dietaryTags").isArray()
+        .jsonPath("$.allergens").isArray()
+        .jsonPath("$.spiceLevel").isEqualTo("HOT")
+        .jsonPath("$.disclaimer").isNotEmpty();
+  }
+
+  @Test
+  public void shouldReturnNotFoundForUnknownTaco() {
+    TacoRepository tacoRepo = Mockito.mock(TacoRepository.class);
+    IngredientRepository ingredientRepo = Mockito.mock(IngredientRepository.class);
+    when(tacoRepo.findById("UNKNOWN")).thenReturn(Mono.empty());
+
+    StepVerifier.create(controller(tacoRepo,ingredientRepo)
+        .classification("UNKNOWN"))
+        .expectErrorSatisfies(error -> {
+          assertTrue(error instanceof ApiException);
+          ApiException apiError = (ApiException) error;
+          assertEquals(org.springframework.http.HttpStatus.NOT_FOUND,
+              apiError.getStatus());
+          assertEquals("TACO_NOT_FOUND",apiError.getCode());
+        })
+        .verify();
+  }
+
+  private WebTestClient client(TacoRepository tacoRepo,
+      IngredientRepository ingredientRepo) {
+    return WebTestClient.bindToController(controller(tacoRepo,ingredientRepo))
+        .build();
+  }
+
+  private TacoController controller(TacoRepository tacoRepo,
+      IngredientRepository ingredientRepo) {
+    return new TacoController(tacoRepo,
+        new TacoClassificationService(ingredientRepo));
+  }
+
+  private Taco testTaco(String id) {
     Taco taco = new Taco();
-    taco.setId(number != null ? number.toString(): "TESTID");
-    taco.setName("Taco " + number);
-    List<Ingredient> ingredients = new ArrayList<>();
-    ingredients.add(
-        new Ingredient("INGA", "Ingredient A", Type.WRAP));
-    ingredients.add(
-        new Ingredient("INGB", "Ingredient B", Type.PROTEIN));
-    taco.setIngredients(ingredients);
+    taco.setId(id);
+    taco.setName("Test Taco " + id);
+    taco.setIngredients(Arrays.asList(
+        ingredientReference("LETC"),ingredientReference("SLSA")));
     return taco;
   }
 
+  private Ingredient ingredientReference(String id) {
+    return new Ingredient(id,id,Type.VEGGIES);
+  }
+
+  private Ingredient plantIngredient(String id) {
+    Ingredient ingredient = catalogIngredient(id);
+    ingredient.setDietaryTags(EnumSet.allOf(DietaryTag.class));
+    return ingredient;
+  }
+
+  private Ingredient spicyPlantIngredient() {
+    Ingredient ingredient = plantIngredient("SLSA");
+    ingredient.setSpiceLevel(SpiceLevel.HOT);
+    return ingredient;
+  }
+
+  private Ingredient catalogIngredient(String id) {
+    Ingredient ingredient = new Ingredient(
+        id,id,Type.VEGGIES,new BigDecimal("1.00"),true,10,2);
+    ingredient.setDietaryTags(EnumSet.noneOf(DietaryTag.class));
+    ingredient.setAllergens(EnumSet.noneOf(Allergen.class));
+    ingredient.setSpiceLevel(SpiceLevel.NONE);
+    return ingredient;
+  }
 }

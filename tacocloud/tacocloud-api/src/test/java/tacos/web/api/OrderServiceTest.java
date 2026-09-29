@@ -38,6 +38,9 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 import tacos.Ingredient;
+import tacos.Ingredient.Allergen;
+import tacos.Ingredient.DietaryTag;
+import tacos.Ingredient.SpiceLevel;
 import tacos.InventoryReservation;
 import tacos.InventoryReservation.Status;
 import tacos.PaymentMethod;
@@ -72,6 +75,7 @@ public class OrderServiceTest {
   private IngredientRepository ingredientRepo;
   private CouponProperties couponProperties;
   private InventoryService inventoryService;
+  private TacoClassificationService classificationService;
 
   @BeforeEach
   public void setup() {
@@ -91,6 +95,7 @@ public class OrderServiceTest {
         couponProperties,
         Clock.fixed(Instant.parse("2026-06-15T12:00:00Z"),ZoneOffset.UTC));
     inventoryService = Mockito.mock(InventoryService.class);
+    classificationService = new TacoClassificationService(ingredientRepo);
     when(inventoryService.reserve(any(TacoOrder.class)))
         .thenAnswer(invocation -> {
           TacoOrder order = invocation.getArgument(0);
@@ -101,7 +106,7 @@ public class OrderServiceTest {
 
     service = new OrderService(
         repo,orderMessages,emailOrderService,userRepo,paymentMethodRepo,
-        ingredientRepo,couponService,inventoryService);
+        ingredientRepo,couponService,inventoryService,classificationService);
   }
 
 
@@ -523,8 +528,13 @@ public class OrderServiceTest {
   public void shouldQuoteWithoutPersistencePublicationOrInventoryMutation() {
 
     couponProperties.getRules().put("PROMO25",percentageRule("25"));
+    Ingredient flour = catalogIngredient("FLTO","10.00");
+    flour.setDietaryTags(java.util.EnumSet.of(
+        DietaryTag.VEGAN,DietaryTag.VEGETARIAN));
+    flour.setAllergens(java.util.EnumSet.of(Allergen.GLUTEN));
+    flour.setSpiceLevel(SpiceLevel.MILD);
     when(ingredientRepo.findById("FLTO"))
-        .thenReturn(Mono.just(catalogIngredient("FLTO","10.00")));
+        .thenReturn(Mono.just(flour));
 
     OrderQuoteCommand command = new OrderQuoteCommand(
         Collections.singletonList(orderItem("Quote Taco",2,"FLTO")),
@@ -537,6 +547,26 @@ public class OrderServiceTest {
           assertEquals(new BigDecimal("5.00"),quote.getDiscount());
           assertEquals(new BigDecimal("15.00"),quote.getTotal());
           assertEquals("MXN",quote.getCurrency());
+          assertEquals(1,quote.getClassifications().size());
+          assertTrue(quote.getClassifications().get(0).getClassification()
+              .getDietaryTags().contains(DietaryTag.VEGAN));
+          assertFalse(quote.getClassifications().get(0).getClassification()
+              .getDietaryTags().contains(DietaryTag.GLUTEN_FREE));
+          assertEquals(java.util.EnumSet.of(Allergen.GLUTEN),
+              quote.getClassifications().get(0).getClassification()
+                  .getAllergens());
+          assertEquals(SpiceLevel.MILD,
+              quote.getClassifications().get(0).getClassification()
+                  .getSpiceLevel());
+          tacos.web.api.dto.ApiDtos.OrderQuoteResponse response =
+              ApiMapper.toResponse(quote);
+          assertEquals(1,response.getClassifications().size());
+          assertEquals(java.util.EnumSet.of(Allergen.GLUTEN),
+              response.getClassifications().get(0).getAllergens());
+          assertEquals(SpiceLevel.MILD,
+              response.getClassifications().get(0).getSpiceLevel());
+          assertTrue(response.getClassifications().get(0).getDisclaimer()
+              .contains("contaminación cruzada"));
         })
         .verifyComplete();
 

@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.util.Collections;
+import java.util.EnumSet;
 
 import javax.validation.Validation;
 import javax.validation.Validator;
@@ -34,6 +35,9 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 import tacos.Ingredient;
 import tacos.Ingredient.Type;
+import tacos.Ingredient.Allergen;
+import tacos.Ingredient.DietaryTag;
+import tacos.Ingredient.SpiceLevel;
 import tacos.data.IngredientRepository;
 import tacos.web.api.dto.ApiDtos.IngredientCatalogUpdateRequest;
 import tacos.web.api.dto.ApiDtos.IngredientRequest;
@@ -392,6 +396,31 @@ public class IngredientControllerTest {
           assertEquals(new BigDecimal("1.50"),response.getUnitPrice());
           assertEquals(5,response.getStockOnHand());
           assertEquals(3L,response.getVersion());
+        })
+        .verifyComplete();
+  }
+
+  @Test
+  public void shouldPersistTypedIngredientClassificationMetadata() {
+    IngredientRepository ingredientRepo = Mockito.mock(IngredientRepository.class);
+    Ingredient ingredient = catalogIngredient("1.00",true,5,2,3L);
+    IngredientRequest request = new IngredientRequest();
+    request.setId("FLTO");
+    request.setName("Flour Tortilla");
+    request.setType(Type.WRAP);
+    request.setDietaryTags(EnumSet.of(
+        DietaryTag.VEGAN,DietaryTag.VEGETARIAN));
+    request.setAllergens(EnumSet.of(Allergen.GLUTEN));
+    request.setSpiceLevel(SpiceLevel.NONE);
+    when(ingredientRepo.findById("FLTO")).thenReturn(Mono.just(ingredient));
+    when(ingredientRepo.save(ingredient)).thenReturn(Mono.just(ingredient));
+
+    StepVerifier.create(new IngredientController(ingredientRepo)
+        .updateIngredient("FLTO",request))
+        .assertNext(response -> {
+          assertEquals(request.getDietaryTags(),response.getBody().getDietaryTags());
+          assertEquals(request.getAllergens(),response.getBody().getAllergens());
+          assertEquals(SpiceLevel.NONE,response.getBody().getSpiceLevel());
         })
         .verifyComplete();
   }

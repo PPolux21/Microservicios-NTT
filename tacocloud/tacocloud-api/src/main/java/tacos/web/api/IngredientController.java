@@ -71,8 +71,12 @@ public class IngredientController {
         Mono.error(
           ApiException.notFound("INGREDIENT_NOT_FOUND","Ingredient does not exist.")))
       .flatMap(found -> {
+        Ingredient requested = ApiMapper.toEntity(request);
         found.setName(request.getName());
         found.setType(request.getType());
+        found.setDietaryTags(requested.getDietaryTags());
+        found.setAllergens(requested.getAllergens());
+        found.setSpiceLevel(requested.getSpiceLevel());
         return repo.save(found);
       })
       .map(saved ->ResponseEntity.ok(ApiMapper.toResponse(saved)));

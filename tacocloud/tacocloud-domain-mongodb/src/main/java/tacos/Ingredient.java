@@ -2,6 +2,8 @@ package tacos;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.EnumSet;
+import java.util.Set;
 
 import javax.validation.constraints.AssertTrue;
 import javax.validation.constraints.DecimalMin;
@@ -43,6 +45,14 @@ public class Ingredient {
   @Version
   private Long version;
 
+  private Set<DietaryTag> dietaryTags =
+      EnumSet.noneOf(DietaryTag.class);
+
+  private Set<Allergen> allergens =
+      EnumSet.noneOf(Allergen.class);
+
+  private SpiceLevel spiceLevel = SpiceLevel.NONE;
+
   public Ingredient(String id,String name,Type type) {
     this(id,name,type,BigDecimal.ZERO,false,0,0);
   }
@@ -73,6 +83,18 @@ public class Ingredient {
 
   public enum Type {
     WRAP, PROTEIN, VEGGIES, CHEESE, SAUCE
+  }
+
+  public enum DietaryTag {
+    VEGAN, VEGETARIAN, GLUTEN_FREE
+  }
+
+  public enum Allergen {
+    GLUTEN, DAIRY, EGG, PEANUT, TREE_NUT, SOY
+  }
+
+  public enum SpiceLevel {
+    NONE, MILD, MEDIUM, HOT, EXTREME
   }
 
 }

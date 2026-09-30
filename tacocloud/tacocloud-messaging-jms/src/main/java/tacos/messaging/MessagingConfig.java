@@ -7,19 +7,21 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jms.support.converter.MappingJackson2MessageConverter;
 
-import tacos.TacoOrder;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Configuration
 public class MessagingConfig {
 
   @Bean
-  public MappingJackson2MessageConverter messageConverter() {
+  public MappingJackson2MessageConverter messageConverter(
+      ObjectMapper objectMapper) {
     MappingJackson2MessageConverter messageConverter =
                             new MappingJackson2MessageConverter();
+    messageConverter.setObjectMapper(objectMapper);
     messageConverter.setTypeIdPropertyName("_typeId");
     
     Map<String, Class<?>> typeIdMappings = new HashMap<String, Class<?>>();
-    typeIdMappings.put("order", TacoOrder.class);
+    typeIdMappings.put("order-event-v1", OrderEvent.class);
     messageConverter.setTypeIdMappings(typeIdMappings);
     
     return messageConverter;

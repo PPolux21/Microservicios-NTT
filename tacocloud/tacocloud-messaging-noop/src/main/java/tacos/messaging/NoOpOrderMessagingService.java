@@ -3,18 +3,19 @@ package tacos.messaging;
 import org.springframework.stereotype.Service;
 
 import lombok.extern.slf4j.Slf4j;
-import tacos.TacoOrder;
-
 @Service
 @Slf4j
 public class NoOpOrderMessagingService
        implements OrderMessagingService {
   
   @Override
-  public void sendOrder(TacoOrder order) {
+  public void sendOrder(OrderEvent event) {
 
-    log.info("Order published to kitchen. orderId={}",
-      order != null ? order.getId() : null);
+    log.info("Order event published to kitchen. eventId={} orderId={} type={}",
+        event != null ? event.getEventId() : null,
+        event != null && event.getPayload() != null
+            ? event.getPayload().getOrderId() : null,
+        event != null ? event.getEventType() : null);
   }
   
 }

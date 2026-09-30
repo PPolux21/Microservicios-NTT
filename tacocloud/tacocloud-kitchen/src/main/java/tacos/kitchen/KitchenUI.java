@@ -18,7 +18,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
-import tacos.TacoOrder;
+import tacos.messaging.OrderEvent;
 
 @Component
 @Slf4j
@@ -67,11 +67,15 @@ public class KitchenUI {
         HttpMethod.PATCH,request,KitchenOrderView.class).getBody();
   }
 
-  public void displayOrder(TacoOrder order) {
-    int tacoCount = order != null && order.getTacos() != null
-        ? order.getTacos().size() : 0;
-    log.info("Received kitchen order placedAt={} tacoCount={}",
-        order != null ? order.getPlacedAt() : null,tacoCount);
+  public void displayOrder(OrderEvent event) {
+    int itemCount = event != null && event.getPayload() != null
+        ? event.getPayload().getItems().stream()
+            .mapToInt(item -> item.getQuantity()).sum() : 0;
+    log.info("Received kitchen order eventId={} orderId={} type={} itemCount={}",
+        event != null ? event.getEventId() : null,
+        event != null && event.getPayload() != null
+            ? event.getPayload().getOrderId() : null,
+        event != null ? event.getEventType() : null,itemCount);
   }
 
   @Data

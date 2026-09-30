@@ -47,6 +47,7 @@ import tacos.data.PaymentMethodRepository;
 import tacos.data.ReorderAttemptRepository;
 import tacos.data.UserRepository;
 import tacos.messaging.OrderMessagingService;
+import tacos.messaging.OrderEvent;
 import tacos.web.api.OrderService.ReorderStatus;
 import tacos.web.api.TacoDesignValidator.ValidationResult;
 import tacos.web.api.TacoDesignValidator.RuleViolation;
@@ -167,7 +168,7 @@ public class OrderReorderServiceTest {
     assertEquals(1,storedOrders.size());
     verify(inventory,never()).reserve(any(TacoOrder.class));
     verify(attempts,never()).insert(any(ReorderAttempt.class));
-    verify(messages,never()).sendOrder(any(TacoOrder.class));
+    verify(messages,never()).sendOrder(any(OrderEvent.class));
   }
 
   @Test
@@ -197,7 +198,7 @@ public class OrderReorderServiceTest {
     assertEquals(new BigDecimal("10.00"),reloadedOriginal.getTotal());
     verify(inventory,times(1)).reserve(any(TacoOrder.class));
     verify(orders,times(1)).save(any(TacoOrder.class));
-    verify(messages,times(1)).sendOrder(any(TacoOrder.class));
+    verify(messages,times(1)).sendOrder(any(OrderEvent.class));
   }
 
   @Test

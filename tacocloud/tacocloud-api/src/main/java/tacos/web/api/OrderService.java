@@ -36,6 +36,7 @@ import tacos.web.api.mapper.ApiMapper.OrderItemCommand;
 import tacos.web.api.mapper.ApiMapper.OrderQuote;
 import tacos.web.api.mapper.ApiMapper.OrderQuoteCommand;
 import tacos.web.api.mapper.ApiMapper.TacoCommand;
+import tacos.web.api.mapper.OrderEventMapper;
 import tacos.web.api.coupon.CouponService;
 import tacos.web.api.coupon.CouponService.CouponApplication;
 import tacos.web.api.TacoClassificationService.ClassifiedTaco;
@@ -142,7 +143,9 @@ public class OrderService {
                         .release(reservation.getId())
                         .then(Mono.error(saveError))))
                 .flatMap(savedOrder ->
-                  Mono.fromRunnable(() -> orderMessages.sendOrder(savedOrder))
+                  Mono.fromRunnable(() -> orderMessages.sendOrder(
+                      OrderEventMapper.orderCreated(
+                          savedOrder,UUID.randomUUID().toString())))
                   .thenReturn(savedOrder))));
   }
 
@@ -517,7 +520,8 @@ public class OrderService {
 
         .flatMap(savedOrder ->
             Mono.fromRunnable(() ->
-                orderMessages.sendOrder(savedOrder))
+                orderMessages.sendOrder(OrderEventMapper.orderCreated(
+                    savedOrder,UUID.randomUUID().toString())))
                 .thenReturn(savedOrder));
   }
 

@@ -1,0 +1,27 @@
+{
+  "eventId" : "00000000-0000-0000-0000-000000000001",
+  "eventType" : "ORDER_CREATED",
+  "version" : 1,
+  "occurredAt" : "2026-09-29T18:00:00Z",
+  "correlationId" : "corr-123",
+  "payload" : {
+    "orderId" : "ORDER-123",
+    "status" : "CREATED",
+    "previousStatus" : null,
+    "placedAt" : "2026-09-29T17:59:00Z",
+    "items" : [ {
+      "tacoName" : "Safe Taco",
+      "quantity" : 2,
+      "ingredients" : [ {
+        "ingredientId" : "FLTO",
+        "ingredientName" : "Flour Tortilla"
+      }, {
+        "ingredientId" : "CARN",
+        "ingredientName" : "Carnitas"
+      } ]
+    } ],
+    "stationId" : null,
+    "cookId" : null,
+    "cancellationReason" : null
+  }
+}

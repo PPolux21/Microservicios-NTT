@@ -6,6 +6,7 @@ import java.util.Date;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.security.core.Authentication;
@@ -18,7 +19,9 @@ import tacos.TacoOrder.OrderStatusHistoryEntry;
 import tacos.TacoOrder.Status;
 import tacos.data.OrderRepository;
 import tacos.data.UserRepository;
+import tacos.messaging.OrderMessagingService;
 import tacos.web.api.error.ApiExceptionHandler.ApiException;
+import tacos.web.api.mapper.OrderEventMapper;
 
 @Service
 public class OrderWorkflowService {
@@ -34,13 +37,16 @@ public class OrderWorkflowService {
   private final UserRepository users;
   private final InventoryService inventory;
   private final Clock clock;
+  private final OrderMessagingService orderMessages;
 
   public OrderWorkflowService(OrderRepository orders,UserRepository users,
-      InventoryService inventory,Clock clock) {
+      InventoryService inventory,Clock clock,
+      OrderMessagingService orderMessages) {
     this.orders = orders;
     this.users = users;
     this.inventory = inventory;
     this.clock = clock;
+    this.orderMessages = orderMessages;
   }
 
   public Mono<TacoOrder> transition(String orderId,Status target,
@@ -148,7 +154,11 @@ public class OrderWorkflowService {
                 "The order was updated concurrently. Reload and retry."))
         .flatMap(saved -> target == Status.CANCELLED
             ? inventory.release(saved.getId()).thenReturn(saved)
-            : Mono.just(saved));
+            : Mono.just(saved))
+        .flatMap(saved -> Mono.fromRunnable(() ->
+            orderMessages.sendOrder(OrderEventMapper.statusChanged(
+                saved,current,UUID.randomUUID().toString(),normalizedReason)))
+            .thenReturn(saved));
   }
 
   private Set<String> rolesFor(Status current,Status target) {

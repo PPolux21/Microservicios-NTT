@@ -25,6 +25,7 @@ import tacos.TacoOrder;
 import tacos.User;
 import tacos.data.OrderRepository;
 import tacos.messaging.OrderMessagingService;
+import tacos.messaging.OrderEvent;
 import tacos.web.api.error.ApiExceptionHandler.ApiException;
 import tacos.web.api.dto.ApiDtos.OrderItemRequest;
 import tacos.web.api.dto.ApiDtos.OrderQuoteRequest;
@@ -375,7 +376,7 @@ public class OrderApiControllerTest {
         .verifyComplete();
 
     verify(repo,never()).save(any(TacoOrder.class));
-    verify(orderMessages,never()).sendOrder(any(TacoOrder.class));
+    verify(orderMessages,never()).sendOrder(any(OrderEvent.class));
   }
 
   @Test
@@ -411,7 +412,7 @@ public class OrderApiControllerTest {
         .verifyComplete();
 
     verify(repo,never()).save(any(TacoOrder.class));
-    verify(orderMessages,never()).sendOrder(any(TacoOrder.class));
+    verify(orderMessages,never()).sendOrder(any(OrderEvent.class));
   }
 
   @Test

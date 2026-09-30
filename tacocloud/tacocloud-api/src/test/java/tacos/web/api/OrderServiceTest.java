@@ -52,6 +52,7 @@ import tacos.data.PaymentMethodRepository;
 import tacos.data.ReorderAttemptRepository;
 import tacos.data.UserRepository;
 import tacos.messaging.OrderMessagingService;
+import tacos.messaging.OrderEvent;
 import tacos.web.api.dto.ApiDtos.OrderCreateRequest;
 import tacos.web.api.error.ApiExceptionHandler.ApiException;
 import tacos.web.api.mapper.ApiMapper;
@@ -144,6 +145,7 @@ public class OrderServiceTest {
     TacoOrder convertedOrder = new TacoOrder();
 
     TacoOrder savedOrder = new TacoOrder();
+    savedOrder.setId("ORDER-EMAIL-1");
 
     when(emailOrderService.convertEmailOrderToDomainOrder(emailOrder))
         .thenReturn(Mono.just(convertedOrder));
@@ -159,7 +161,10 @@ public class OrderServiceTest {
 
     verify(repo,times(1)).save(convertedOrder);
 
-    verify(orderMessages,times(1)).sendOrder(savedOrder);
+    ArgumentCaptor<OrderEvent> published =
+        ArgumentCaptor.forClass(OrderEvent.class);
+    verify(orderMessages,times(1)).sendOrder(published.capture());
+    assertEquals("ORDER-EMAIL-1",published.getValue().getPayload().getOrderId());
   }
 
 
@@ -184,7 +189,7 @@ public class OrderServiceTest {
 
     verify(repo,never()).save(any(TacoOrder.class));
 
-    verify(orderMessages,never()).sendOrder(any(TacoOrder.class));
+    verify(orderMessages,never()).sendOrder(any(OrderEvent.class));
 
 
     // La conversión funciona pero falla el guardado.
@@ -204,7 +209,7 @@ public class OrderServiceTest {
 
     verify(repo,times(1)).save(convertedOrder);
 
-    verify(orderMessages,never()).sendOrder(any(TacoOrder.class));
+    verify(orderMessages,never()).sendOrder(any(OrderEvent.class));
   }
 
 
@@ -223,6 +228,7 @@ public class OrderServiceTest {
     TacoOrder convertedOrder = new TacoOrder();
 
     TacoOrder savedOrder = new TacoOrder();
+    savedOrder.setId("ORDER-COLD-1");
 
     AtomicInteger conversionSubscriptions = new AtomicInteger();
 
@@ -252,7 +258,7 @@ public class OrderServiceTest {
 
     assertEquals(1,saveSubscriptions.get());
 
-    verify(orderMessages,times(1)).sendOrder(savedOrder);
+    verify(orderMessages,times(1)).sendOrder(any(OrderEvent.class));
   }
 
   @Test
@@ -391,12 +397,12 @@ public class OrderServiceTest {
     assertFalse(fieldNames.contains("ccCVV"));
     assertFalse(fieldNames.contains("ccExpiration"));
 
-    ArgumentCaptor<TacoOrder>
-        messageCaptor = ArgumentCaptor.forClass(TacoOrder.class);
+    ArgumentCaptor<OrderEvent>
+        messageCaptor = ArgumentCaptor.forClass(OrderEvent.class);
 
     verify(orderMessages).sendOrder(messageCaptor.capture());
 
-    ObjectMapper mapper = new ObjectMapper();
+    ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
   
     String eventJson =
         mapper.writeValueAsString(messageCaptor.getValue());
@@ -440,7 +446,7 @@ public class OrderServiceTest {
         .verify();
 
     verify(repo,never()).save(any(TacoOrder.class));
-    verify(orderMessages,never()).sendOrder(any(TacoOrder.class));
+    verify(orderMessages,never()).sendOrder(any(OrderEvent.class));
   }
 
   @Test
@@ -601,7 +607,7 @@ public class OrderServiceTest {
         .verifyComplete();
 
     verify(repo,never()).save(any(TacoOrder.class));
-    verify(orderMessages,never()).sendOrder(any(TacoOrder.class));
+    verify(orderMessages,never()).sendOrder(any(OrderEvent.class));
     verify(paymentMethodRepo,never()).findById(any(String.class));
     verify(userRepo,never()).findByUsername(any(String.class));
     verify(inventoryService,never()).reserve(any(TacoOrder.class));
@@ -630,7 +636,7 @@ public class OrderServiceTest {
     }
 
     verify(repo,never()).save(any(TacoOrder.class));
-    verify(orderMessages,never()).sendOrder(any(TacoOrder.class));
+    verify(orderMessages,never()).sendOrder(any(OrderEvent.class));
   }
 
   @Test
@@ -672,7 +678,7 @@ public class OrderServiceTest {
     ArgumentCaptor<TacoOrder> draft = ArgumentCaptor.forClass(TacoOrder.class);
     verify(inventoryService).reserve(draft.capture());
     verify(inventoryService).release(draft.getValue().getId());
-    verify(orderMessages,never()).sendOrder(any(TacoOrder.class));
+    verify(orderMessages,never()).sendOrder(any(OrderEvent.class));
 
     org.mockito.InOrder sequence = Mockito.inOrder(inventoryService,repo);
     sequence.verify(inventoryService).reserve(any(TacoOrder.class));
@@ -705,7 +711,7 @@ public class OrderServiceTest {
         inventoryService,repo,orderMessages);
     sequence.verify(inventoryService).reserve(any(TacoOrder.class));
     sequence.verify(repo).save(any(TacoOrder.class));
-    sequence.verify(orderMessages).sendOrder(any(TacoOrder.class));
+    sequence.verify(orderMessages).sendOrder(any(OrderEvent.class));
   }
 
   @Test

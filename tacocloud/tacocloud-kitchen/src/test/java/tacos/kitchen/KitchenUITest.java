@@ -2,6 +2,8 @@ package tacos.kitchen;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.client.ExpectedCount.once;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
@@ -17,6 +19,9 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestTemplate;
 
 import tacos.kitchen.KitchenUI.KitchenOrderView;
+import tacos.messaging.OrderEvent;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class KitchenUITest {
 
@@ -53,5 +58,29 @@ public class KitchenUITest {
     assertEquals("ACCEPTED",claimed.getStatus());
     assertEquals("PREPARING",preparing.getStatus());
     server.verify();
+  }
+
+  @Test
+  public void shouldDeserializeAndConsumeSharedOrderEvent() throws Exception {
+    String json = "{\"eventId\":\"00000000-0000-0000-0000-000000000027\","
+        + "\"eventType\":\"ORDER_CREATED\",\"version\":1,"
+        + "\"occurredAt\":\"2026-09-29T18:00:00Z\","
+        + "\"correlationId\":\"corr-kitchen\",\"payload\":{"
+        + "\"orderId\":\"ORDER-27\",\"status\":\"CREATED\","
+        + "\"placedAt\":\"2026-09-29T17:59:00Z\",\"items\":[{"
+        + "\"tacoName\":\"Kitchen Taco\",\"quantity\":2,"
+        + "\"ingredients\":[{\"ingredientId\":\"FLTO\","
+        + "\"ingredientName\":\"Flour Tortilla\"}]}]},"
+        + "\"futureField\":\"compatible\"}";
+    OrderEvent event = new ObjectMapper().findAndRegisterModules()
+        .readValue(json,OrderEvent.class);
+    KitchenUI ui = mock(KitchenUI.class);
+
+    new tacos.kitchen.messaging.jms.listener.OrderListener(ui)
+        .receiveOrder(event);
+
+    assertEquals("ORDER-27",event.getPayload().getOrderId());
+    assertEquals(2,event.getPayload().getItems().get(0).getQuantity());
+    verify(ui).displayOrder(event);
   }
 }

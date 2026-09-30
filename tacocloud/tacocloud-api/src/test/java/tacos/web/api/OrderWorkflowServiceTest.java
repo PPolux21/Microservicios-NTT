@@ -25,6 +25,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mockito;
+import org.mockito.ArgumentCaptor;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -41,6 +42,9 @@ import tacos.TacoOrder.Status;
 import tacos.User;
 import tacos.data.OrderRepository;
 import tacos.data.UserRepository;
+import tacos.messaging.OrderEvent;
+import tacos.messaging.OrderEventType;
+import tacos.messaging.OrderMessagingService;
 import tacos.web.api.error.ApiExceptionHandler.ApiException;
 import tacos.web.api.mapper.ApiMapper;
 
@@ -51,6 +55,7 @@ public class OrderWorkflowServiceTest {
   private OrderRepository orders;
   private UserRepository users;
   private InventoryService inventory;
+  private OrderMessagingService orderMessages;
   private OrderWorkflowService workflow;
 
   @BeforeEach
@@ -58,8 +63,9 @@ public class OrderWorkflowServiceTest {
     orders = Mockito.mock(OrderRepository.class);
     users = Mockito.mock(UserRepository.class);
     inventory = Mockito.mock(InventoryService.class);
+    orderMessages = Mockito.mock(OrderMessagingService.class);
     workflow = new OrderWorkflowService(
-        orders,users,inventory,Clock.fixed(NOW,ZoneOffset.UTC));
+        orders,users,inventory,Clock.fixed(NOW,ZoneOffset.UTC),orderMessages);
   }
 
   @ParameterizedTest(name="{0} -> {1} as {2}: allowed={3}")
@@ -178,6 +184,16 @@ public class OrderWorkflowServiceTest {
     assertFalse(json.contains("ccCVV"));
     assertFalse(json.contains("password"));
     assertFalse(json.contains("Authorization"));
+
+    ArgumentCaptor<OrderEvent> events = ArgumentCaptor.forClass(OrderEvent.class);
+    verify(orderMessages,times(3)).sendOrder(events.capture());
+    assertTrue(events.getAllValues().stream()
+        .allMatch(event -> event.getEventType() == OrderEventType.STATUS_CHANGED));
+    assertEquals("CREATED",
+        events.getAllValues().get(0).getPayload().getPreviousStatus());
+    assertEquals("READY",
+        events.getAllValues().get(2).getPayload().getStatus());
+    assertNotNull(events.getAllValues().get(0).getCorrelationId());
   }
 
   @Test
@@ -262,6 +278,13 @@ public class OrderWorkflowServiceTest {
 
     verify(orders,times(1)).save(order);
     verify(inventory,times(2)).release("ORDER-1");
+    ArgumentCaptor<OrderEvent> event = ArgumentCaptor.forClass(OrderEvent.class);
+    verify(orderMessages).sendOrder(event.capture());
+    assertEquals(OrderEventType.CANCELLED,event.getValue().getEventType());
+    assertEquals("ACCEPTED",event.getValue().getPayload().getPreviousStatus());
+    assertEquals("CANCELLED",event.getValue().getPayload().getStatus());
+    assertEquals("changed mind",
+        event.getValue().getPayload().getCancellationReason());
   }
 
   @Test

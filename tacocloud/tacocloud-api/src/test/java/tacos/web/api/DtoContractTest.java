@@ -147,7 +147,7 @@ public class DtoContractTest {
       + "\"deliveryName\":\"Jose\","
       + "\"id\":\"ORDER-HACK\","
       + "\"placedAt\":\"2000-01-01T00:00:00Z\","
-      + "\"status\":\"PREPARING\","
+      + "\"status\":\"DELIVERED\","
       + "\"userId\":\"OTHER-USER\","
       + "\"total\":\"0.01\","
       + "\"discountAmount\":\"999.99\","

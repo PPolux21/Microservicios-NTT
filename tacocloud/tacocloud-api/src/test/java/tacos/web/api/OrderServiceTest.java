@@ -472,6 +472,10 @@ public class OrderServiceTest {
 
     StepVerifier.create(service.createOrder(command,authentication))
         .assertNext(order -> {
+          assertEquals(TacoOrder.Status.CREATED,order.getStatus());
+          assertEquals(1,order.getStatusHistory().size());
+          assertEquals(TacoOrder.Status.CREATED,
+              order.getStatusHistory().get(0).getToStatus());
           assertEquals("MXN",order.getCurrency());
           assertEquals(new BigDecimal("0.68"),order.getTotal());
           assertEquals(1,order.getItems().size());
@@ -702,21 +706,6 @@ public class OrderServiceTest {
     sequence.verify(inventoryService).reserve(any(TacoOrder.class));
     sequence.verify(repo).save(any(TacoOrder.class));
     sequence.verify(orderMessages).sendOrder(any(TacoOrder.class));
-  }
-
-  @Test
-  public void shouldReleaseInventoryBeforeDeletingCancelableOrder() {
-
-    TacoOrder order = new TacoOrder();
-    order.setId("ORDER-1");
-    when(inventoryService.release("ORDER-1")).thenReturn(Mono.empty());
-    when(repo.deleteById("ORDER-1")).thenReturn(Mono.empty());
-
-    StepVerifier.create(service.cancelOrder(order)).verifyComplete();
-
-    org.mockito.InOrder sequence = Mockito.inOrder(inventoryService,repo);
-    sequence.verify(inventoryService).release("ORDER-1");
-    sequence.verify(repo).deleteById("ORDER-1");
   }
 
   @Test

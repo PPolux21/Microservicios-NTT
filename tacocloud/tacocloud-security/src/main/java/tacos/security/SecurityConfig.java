@@ -110,6 +110,20 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
             HttpMethod.POST,
             "/api/orders/fromEmail")
         .hasRole("ADMIN")
+
+        .antMatchers(
+            HttpMethod.PATCH,
+            "/api/orders/*/status")
+        .hasAnyRole(
+            "KITCHEN",
+            "ADMIN")
+
+        .antMatchers(
+            HttpMethod.POST,
+            "/api/orders/*/cancel")
+        .hasAnyRole(
+            "USER",
+            "ADMIN")
         
         .antMatchers(
             "/api/orders/**")

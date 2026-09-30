@@ -14,6 +14,7 @@ import tacos.Ingredient;
 import tacos.Taco;
 import tacos.TacoOrder;
 import tacos.TacoOrder.OrderItem;
+import tacos.TacoOrder.OrderStatusHistoryEntry;
 
 import tacos.web.api.dto.ApiDtos.IngredientRequest;
 import tacos.web.api.dto.ApiDtos.DailyTacoResponse;
@@ -27,6 +28,7 @@ import tacos.web.api.dto.ApiDtos.OrderItemResponse;
 import tacos.web.api.dto.ApiDtos.OrderResponse;
 import tacos.web.api.dto.ApiDtos.OrderSummaryResponse;
 import tacos.web.api.dto.ApiDtos.OrderHistoryPageResponse;
+import tacos.web.api.dto.ApiDtos.OrderStatusHistoryResponse;
 import tacos.web.api.dto.ApiDtos.ReorderResponse;
 import tacos.web.api.dto.ApiDtos.OrderTacoResponse;
 import tacos.web.api.dto.ApiDtos.TacoCatalogResponse;
@@ -145,8 +147,16 @@ public final class ApiMapper {
         .map(ApiMapper::toResponse)
         .collect(Collectors.toList());
 
+    List<OrderStatusHistoryResponse> statusHistory =
+        (order.getStatusHistory() != null
+            ? order.getStatusHistory()
+            : Collections.<OrderStatusHistoryEntry>emptyList()).stream()
+        .map(ApiMapper::toResponse)
+        .collect(Collectors.toList());
+
     return new OrderResponse(
         order.getId(),
+        order.getVersion(),
         order.getDeliveryName(),
         order.getDeliveryStreet(),
         order.getDeliveryCity(),
@@ -154,6 +164,7 @@ public final class ApiMapper {
         order.getDeliveryZip(),
         order.getPlacedAt(),
         order.getStatus() != null ? order.getStatus().name() : null,
+        statusHistory,
         tacos,
         items,
         order.getSubtotal(),
@@ -161,6 +172,15 @@ public final class ApiMapper {
         order.getDiscountAmount(),
         order.getTotal(),
         order.getCurrency());
+  }
+
+  private static OrderStatusHistoryResponse toResponse(
+      OrderStatusHistoryEntry entry) {
+    return new OrderStatusHistoryResponse(
+        entry.getFromStatus() != null ? entry.getFromStatus().name() : null,
+        entry.getToStatus() != null ? entry.getToStatus().name() : null,
+        entry.getChangedAt(),entry.getChangedBy(),entry.getOrigin(),
+        entry.getReason());
   }
 
   public static OrderSummaryResponse toSummaryResponse(TacoOrder order) {

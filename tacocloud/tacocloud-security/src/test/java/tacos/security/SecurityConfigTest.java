@@ -19,6 +19,8 @@ import static org.springframework.test.web.servlet
     .request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet
     .request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet
+    .request.MockMvcRequestBuilders.patch;
 
 import static org.springframework.test.web.servlet
     .result.MockMvcResultMatchers.status;
@@ -215,6 +217,33 @@ public class SecurityConfigTest {
         .andExpect(status().isOk());
   }
 
+  @Test
+  public void shouldApplyOrderWorkflowRoleMatrix()
+      throws Exception {
+    mvc.perform(patch("/api/orders/ORDER-1/status").with(csrf()))
+        .andExpect(status().isUnauthorized());
+
+    mvc.perform(patch("/api/orders/ORDER-1/status")
+            .with(csrf()).with(user("jose").roles("USER")))
+        .andExpect(status().isForbidden());
+
+    mvc.perform(patch("/api/orders/ORDER-1/status")
+            .with(csrf()).with(user("cook").roles("KITCHEN")))
+        .andExpect(status().isOk());
+
+    mvc.perform(patch("/api/orders/ORDER-1/status")
+            .with(csrf()).with(user("admin").roles("ADMIN")))
+        .andExpect(status().isOk());
+
+    mvc.perform(post("/api/orders/ORDER-1/cancel")
+            .with(csrf()).with(user("jose").roles("USER")))
+        .andExpect(status().isOk());
+
+    mvc.perform(post("/api/orders/ORDER-1/cancel")
+            .with(csrf()).with(user("cook").roles("KITCHEN")))
+        .andExpect(status().isForbidden());
+  }
+
 
   @Test
   public void shouldProtectActuatorAndDataRest()
@@ -351,6 +380,17 @@ public class SecurityConfigTest {
 
     @PostMapping("/api/orders/{orderId}/reorder")
     public String reorder() {
+      return "ok";
+    }
+
+    @org.springframework.web.bind.annotation.PatchMapping(
+        "/api/orders/{orderId}/status")
+    public String changeOrderStatus() {
+      return "ok";
+    }
+
+    @PostMapping("/api/orders/{orderId}/cancel")
+    public String cancelOrder() {
       return "ok";
     }
   }

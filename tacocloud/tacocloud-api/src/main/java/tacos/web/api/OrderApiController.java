@@ -18,13 +18,13 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 import reactor.core.publisher.Mono;
-import tacos.TacoOrder;
 import tacos.web.api.dto.ApiDtos.OrderCreateRequest;
 import tacos.web.api.dto.ApiDtos.OrderResponse;
 import tacos.web.api.dto.ApiDtos.OrderQuoteRequest;
 import tacos.web.api.dto.ApiDtos.OrderQuoteResponse;
 import tacos.web.api.dto.ApiDtos.ReorderRequest;
 import tacos.web.api.dto.ApiDtos.ReorderResponse;
+import tacos.web.api.dto.ApiDtos.OrderStatusChangeRequest;
 import tacos.web.api.error.ApiExceptionHandler.ApiException;
 import tacos.web.api.mapper.ApiMapper;
 import tacos.web.api.mapper.ApiMapper.OrderCreateCommand;
@@ -45,13 +45,16 @@ public class OrderApiController {
    */
   private OrderMessagingService orderMessages;
   private OrderService orderService;
+  private OrderWorkflowService workflowService;
 
   public OrderApiController(OrderRepository repo,
                             OrderMessagingService orderMessages,
-                            OrderService orderService) {
+                            OrderService orderService,
+                            OrderWorkflowService workflowService) {
     this.repo = repo;
     this.orderMessages = orderMessages;
     this.orderService = orderService;
+    this.workflowService = workflowService;
   }
 
   @PostMapping(consumes="application/json")
@@ -83,6 +86,24 @@ public class OrderApiController {
     return orderService.reorder(
         orderId,request.getPaymentMethodId(),request.isConfirmPriceChange(),
         idempotencyKey,authentication)
+        .map(ApiMapper::toResponse);
+  }
+
+  @PatchMapping(path="/{orderId}/status",consumes="application/json")
+  public Mono<OrderResponse> changeStatus(
+      @PathVariable String orderId,
+      @Valid @RequestBody OrderStatusChangeRequest request,
+      Authentication authentication) {
+    return workflowService.transition(
+        orderId,request.getStatus(),request.getReason(),authentication)
+        .map(ApiMapper::toResponse);
+  }
+
+  @PostMapping(path="/{orderId}/cancel")
+  public Mono<OrderResponse> cancelOrder(
+      @PathVariable String orderId,Authentication authentication) {
+    return workflowService.cancel(
+        orderId,"Cancelled by owner",authentication)
         .map(ApiMapper::toResponse);
   }
 
@@ -164,18 +185,9 @@ public class OrderApiController {
   @DeleteMapping("/{orderId}")
   public Mono<ResponseEntity<Void>>deleteOrder(@PathVariable("orderId") String orderId,
         Authentication authentication) {
-
-    return orderService.findAccessibleOrder(orderId,authentication)
-      .flatMap(order -> {
-        if (order.getStatus() == TacoOrder.Status.PREPARING) {
-
-          return Mono.error(
-            ApiException.conflict("ORDER_ALREADY_PREPARING","An order being prepared cannot be deleted."));
-        }
-
-        return orderService.cancelOrder(order)
-            .thenReturn(ResponseEntity.noContent().<Void>build());
-      });
+    return workflowService.cancel(
+        orderId,"Cancelled through legacy DELETE endpoint",authentication)
+        .thenReturn(ResponseEntity.noContent().<Void>build());
   }
 
 }

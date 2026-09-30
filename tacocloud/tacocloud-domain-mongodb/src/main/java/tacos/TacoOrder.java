@@ -10,6 +10,7 @@ import javax.validation.constraints.Min;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Transient;
+import org.springframework.data.annotation.Version;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 
@@ -26,6 +27,10 @@ public class TacoOrder implements Serializable {
 
   @Id
   private String id;
+
+  @Version
+  private Long version;
+
   private Date placedAt = new Date();
 
   private String userId;
@@ -76,10 +81,46 @@ public class TacoOrder implements Serializable {
 
   public enum Status {
     CREATED,
-    PREPARING
+    ACCEPTED,
+    PREPARING,
+    READY,
+    OUT_FOR_DELIVERY,
+    DELIVERED,
+    CANCELLED
   }
   
   private Status status = Status.CREATED;
+
+  private List<OrderStatusHistoryEntry> statusHistory = new ArrayList<>();
+
+  public void addStatusHistory(OrderStatusHistoryEntry entry) {
+    if (statusHistory == null) {
+      statusHistory = new ArrayList<>();
+    }
+    statusHistory.add(entry);
+  }
+
+  public enum ChangeOrigin {
+    USER_API,
+    KITCHEN_API,
+    ADMIN_API,
+    SYSTEM
+  }
+
+  @Data
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class OrderStatusHistoryEntry implements Serializable {
+
+    private static final long serialVersionUID = 1L;
+
+    private Status fromStatus;
+    private Status toStatus;
+    private Date changedAt;
+    private String changedBy;
+    private ChangeOrigin origin;
+    private String reason;
+  }
 
   @Data
   @NoArgsConstructor

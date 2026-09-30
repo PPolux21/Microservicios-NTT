@@ -29,6 +29,7 @@ import tacos.web.api.error.ApiExceptionHandler.ApiException;
 import tacos.web.api.dto.ApiDtos.OrderItemRequest;
 import tacos.web.api.dto.ApiDtos.OrderQuoteRequest;
 import tacos.web.api.dto.ApiDtos.OrderTacoRequest;
+import tacos.web.api.dto.ApiDtos.OrderStatusChangeRequest;
 import tacos.web.api.dto.ApiDtos.ReorderRequest;
 import tacos.web.api.mapper.ApiMapper.OrderQuote;
 import tacos.web.api.mapper.ApiMapper.OrderQuoteCommand;
@@ -49,9 +50,12 @@ public class OrderApiControllerTest {
   @Mock
   private OrderService orderService;
 
+  @Mock
+  private OrderWorkflowService workflowService;
+
   @InjectMocks
   private OrderApiController controller = 
-                        new OrderApiController(repo,orderMessages,orderService);
+      new OrderApiController(repo,orderMessages,orderService,workflowService);
 
 
   /*    TC-04
@@ -256,9 +260,9 @@ public class OrderApiControllerTest {
     Authentication authentication = org.mockito.Mockito.mock(Authentication.class);
 
     // La orden existe y pertenece al usuario.
-    when(orderService.findAccessibleOrder("ORDER-1",authentication))
+    when(workflowService.cancel(
+        "ORDER-1","Cancelled through legacy DELETE endpoint",authentication))
         .thenReturn(Mono.just(existingOrder));
-    when(orderService.cancelOrder(existingOrder)).thenReturn(Mono.empty());
 
     StepVerifier.create(
         controller.deleteOrder(
@@ -269,7 +273,8 @@ public class OrderApiControllerTest {
         .verifyComplete();
 
     //La orden no existe.
-    when(orderService.findAccessibleOrder("ORDER-MISSING",authentication))
+    when(workflowService.cancel(
+        "ORDER-MISSING","Cancelled through legacy DELETE endpoint",authentication))
         .thenReturn(Mono.error(ApiException.notFound(
             "ORDER_NOT_FOUND","Order does not exist.")));
 
@@ -286,7 +291,8 @@ public class OrderApiControllerTest {
 
     // La orden existe pero pertenece a otro usuario.
  
-    when(orderService.findAccessibleOrder("ORDER-FOREIGN",authentication))
+    when(workflowService.cancel(
+        "ORDER-FOREIGN","Cancelled through legacy DELETE endpoint",authentication))
         .thenReturn(Mono.error(ApiException.notFound(
             "ORDER_NOT_FOUND","Order does not exist.")));
 
@@ -300,8 +306,8 @@ public class OrderApiControllerTest {
         })
         .verify();
 
-    verify(orderService).cancelOrder(existingOrder);
-    verify(orderService,never()).cancelOrder(foreignOrder);
+    verify(workflowService).cancel(
+        "ORDER-1","Cancelled through legacy DELETE endpoint",authentication);
   }
   
   @Test
@@ -314,8 +320,10 @@ public class OrderApiControllerTest {
 
     Authentication authentication = org.mockito.Mockito.mock(Authentication.class);
 
-    when(orderService.findAccessibleOrder("ORDER-PREPARING",authentication))
-        .thenReturn(Mono.just(order));
+    when(workflowService.cancel(
+        "ORDER-PREPARING","Cancelled through legacy DELETE endpoint",authentication))
+        .thenReturn(Mono.error(ApiException.conflict(
+            "INVALID_ORDER_TRANSITION","Cannot cancel preparing order.")));
 
     StepVerifier.create(
         controller.deleteOrder(
@@ -327,7 +335,8 @@ public class OrderApiControllerTest {
         })
         .verify();
 
-    verify(orderService,never()).cancelOrder(order);
+    verify(workflowService).cancel(
+        "ORDER-PREPARING","Cancelled through legacy DELETE endpoint",authentication);
   }
 
   @Test
@@ -403,5 +412,37 @@ public class OrderApiControllerTest {
 
     verify(repo,never()).save(any(TacoOrder.class));
     verify(orderMessages,never()).sendOrder(any(TacoOrder.class));
+  }
+
+  @Test
+  public void shouldDelegateStatusAndCancellationToCentralWorkflow() {
+    Authentication authentication = org.mockito.Mockito.mock(Authentication.class);
+    TacoOrder accepted = new TacoOrder();
+    accepted.setId("ORDER-1");
+    accepted.setStatus(TacoOrder.Status.ACCEPTED);
+    OrderStatusChangeRequest request = new OrderStatusChangeRequest();
+    request.setStatus(TacoOrder.Status.ACCEPTED);
+    request.setReason("accepted by kitchen");
+    when(workflowService.transition(
+        "ORDER-1",TacoOrder.Status.ACCEPTED,
+        "accepted by kitchen",authentication))
+        .thenReturn(Mono.just(accepted));
+    when(workflowService.cancel(
+        "ORDER-1","Cancelled by owner",authentication))
+        .thenReturn(Mono.just(accepted));
+
+    StepVerifier.create(controller.changeStatus(
+        "ORDER-1",request,authentication))
+        .assertNext(response -> assertEquals("ACCEPTED",response.getStatus()))
+        .verifyComplete();
+    StepVerifier.create(controller.cancelOrder("ORDER-1",authentication))
+        .expectNextCount(1)
+        .verifyComplete();
+
+    verify(workflowService).transition(
+        "ORDER-1",TacoOrder.Status.ACCEPTED,
+        "accepted by kitchen",authentication);
+    verify(workflowService).cancel(
+        "ORDER-1","Cancelled by owner",authentication);
   }
 }

@@ -47,12 +47,16 @@ public class ApiExceptionHandlerTest {
         Mockito.mock(
             OrderService.class);
 
+    OrderWorkflowService workflowService =
+        Mockito.mock(OrderWorkflowService.class);
+
 
     OrderApiController controller =
         new OrderApiController(
             repo,
             messages,
-            orderService);
+            orderService,
+            workflowService);
 
 
     WebTestClient client =

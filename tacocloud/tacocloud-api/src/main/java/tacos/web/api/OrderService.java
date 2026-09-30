@@ -27,7 +27,9 @@ import tacos.ReorderAttempt.Status;
 import tacos.Taco;
 import tacos.User;
 import tacos.TacoOrder;
+import tacos.TacoOrder.ChangeOrigin;
 import tacos.TacoOrder.OrderItem;
+import tacos.TacoOrder.OrderStatusHistoryEntry;
 import tacos.web.api.mapper.ApiMapper;
 import tacos.web.api.mapper.ApiMapper.OrderCreateCommand;
 import tacos.web.api.mapper.ApiMapper.OrderItemCommand;
@@ -133,7 +135,7 @@ public class OrderService {
               Mono.error(
                 new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,"Valid tokenized payment method required")))
             .flatMap(paymentMethod -> priceOrder(
-                command,user,requestedOrderId))
+                command,user,requestedOrderId,authentication))
             .flatMap(order -> inventoryService.reserve(order)
                 .flatMap(reservation -> repo.save(order)
                     .onErrorResume(saveError -> inventoryService
@@ -145,7 +147,7 @@ public class OrderService {
   }
 
   private Mono<TacoOrder> priceOrder(OrderCreateCommand command,User user,
-      String requestedOrderId) {
+      String requestedOrderId,Authentication authentication) {
 
     return priceItems(command.getItems())
         .flatMap(items -> {
@@ -162,7 +164,14 @@ public class OrderService {
           order.setId(requestedOrderId != null
               ? requestedOrderId : UUID.randomUUID().toString());
           order.setUser(user);
-          order.setPlacedAt(new Date());
+          Date placedAt = new Date();
+          order.setPlacedAt(placedAt);
+          order.setStatus(TacoOrder.Status.CREATED);
+          order.addStatusHistory(new OrderStatusHistoryEntry(
+              null,TacoOrder.Status.CREATED,placedAt,user.getUsername(),
+              hasRole(authentication,"ROLE_ADMIN")
+                  ? ChangeOrigin.ADMIN_API : ChangeOrigin.USER_API,
+              "Order created"));
           order.setCurrency(ORDER_CURRENCY);
           items.forEach(order::addItem);
           order.setSubtotal(coupon.getSubtotal());
@@ -493,6 +502,17 @@ public class OrderService {
     return emailOrderService
         .convertEmailOrderToDomainOrder(emailOrder)
 
+        .map(order -> {
+          order.setStatus(TacoOrder.Status.CREATED);
+          if (order.getStatusHistory() == null
+              || order.getStatusHistory().isEmpty()) {
+            order.addStatusHistory(new OrderStatusHistoryEntry(
+                null,TacoOrder.Status.CREATED,new Date(),"email-integration",
+                ChangeOrigin.SYSTEM,"Order created from email"));
+          }
+          return order;
+        })
+
         .flatMap(repo::save)
 
         .flatMap(savedOrder ->
@@ -582,17 +602,6 @@ public class OrderService {
     return userRepo.findByUsername(authentication.getName())
         .switchIfEmpty(Mono.error(ApiException.notFound(
             "USER_NOT_FOUND","Authenticated user does not exist.")));
-  }
-
-  public Mono<Void> cancelOrder(TacoOrder order) {
-
-    if (order == null || order.getId() == null) {
-      return Mono.error(ApiException.notFound(
-          "ORDER_NOT_FOUND","Order does not exist."));
-    }
-
-    return inventoryService.release(order.getId())
-        .then(repo.deleteById(order.getId()));
   }
 
   private boolean hasRole(Authentication authentication,

@@ -28,6 +28,8 @@ import tacos.Ingredient.Type;
 import tacos.Ingredient.Allergen;
 import tacos.Ingredient.DietaryTag;
 import tacos.Ingredient.SpiceLevel;
+import tacos.TacoOrder.ChangeOrigin;
+import tacos.TacoOrder.Status;
 
 public final class ApiDtos {
 
@@ -218,6 +220,7 @@ public final class ApiDtos {
   public static class OrderResponse {
 
     private String id;
+    private Long version;
 
     private String deliveryName;
     private String deliveryStreet;
@@ -227,6 +230,7 @@ public final class ApiDtos {
 
     private Date placedAt;
     private String status;
+    private List<OrderStatusHistoryResponse> statusHistory;
 
     private List<OrderTacoResponse> tacos;
     private List<OrderItemResponse> items;
@@ -235,6 +239,29 @@ public final class ApiDtos {
     private BigDecimal discountAmount;
     private BigDecimal total;
     private String currency;
+  }
+
+  @Data
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class OrderStatusHistoryResponse {
+    private String fromStatus;
+    private String toStatus;
+    private Date changedAt;
+    private String changedBy;
+    private ChangeOrigin origin;
+    private String reason;
+  }
+
+  @Data
+  @NoArgsConstructor
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  public static class OrderStatusChangeRequest {
+    @NotNull(message="status is required")
+    private Status status;
+
+    @Size(max=200,message="reason must have at most 200 characters")
+    private String reason;
   }
 
   @Data

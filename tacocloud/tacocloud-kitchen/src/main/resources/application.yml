@@ -1,6 +1,12 @@
 server:
   port: 8081
 
+tacocloud:
+  kitchen:
+    api-base-url: ${TACOCLOUD_API_URL:http://localhost:8080}
+    username: ${TACOCLOUD_KITCHEN_USERNAME:kitchen}
+    password: ${TACOCLOUD_KITCHEN_PASSWORD:}
+
 ---
 spring:
   profiles: jms-template, jms-listener
@@ -31,8 +37,3 @@ spring:
       group-id: tacocloud_kitchen
       properties:
         spring.json.trusted.packages: tacos
-      
-      
-      
-      
-      

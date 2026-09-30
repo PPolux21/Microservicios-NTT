@@ -267,6 +267,40 @@ public final class ApiDtos {
   @Data
   @NoArgsConstructor
   @AllArgsConstructor
+  public static class OrderStatusResponse {
+    private String orderId;
+    private Long version;
+    private String status;
+    private String stationId;
+    private String cookId;
+    private List<OrderStatusHistoryResponse> statusHistory;
+  }
+
+  @Data
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class KitchenOrderResponse {
+    private String orderId;
+    private Date placedAt;
+    private String status;
+    private List<KitchenOrderItemResponse> items;
+    private String stationId;
+    private String cookId;
+    private int estimatedPrepMinutes;
+  }
+
+  @Data
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class KitchenOrderItemResponse {
+    private String tacoName;
+    private List<String> ingredientIds;
+    private int quantity;
+  }
+
+  @Data
+  @NoArgsConstructor
+  @AllArgsConstructor
   public static class OrderSummaryResponse {
     private String id;
     private Date placedAt;

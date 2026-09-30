@@ -29,6 +29,7 @@ import tacos.web.api.dto.ApiDtos.OrderResponse;
 import tacos.web.api.dto.ApiDtos.OrderSummaryResponse;
 import tacos.web.api.dto.ApiDtos.OrderHistoryPageResponse;
 import tacos.web.api.dto.ApiDtos.OrderStatusHistoryResponse;
+import tacos.web.api.dto.ApiDtos.OrderStatusResponse;
 import tacos.web.api.dto.ApiDtos.ReorderResponse;
 import tacos.web.api.dto.ApiDtos.OrderTacoResponse;
 import tacos.web.api.dto.ApiDtos.TacoCatalogResponse;
@@ -147,12 +148,7 @@ public final class ApiMapper {
         .map(ApiMapper::toResponse)
         .collect(Collectors.toList());
 
-    List<OrderStatusHistoryResponse> statusHistory =
-        (order.getStatusHistory() != null
-            ? order.getStatusHistory()
-            : Collections.<OrderStatusHistoryEntry>emptyList()).stream()
-        .map(ApiMapper::toResponse)
-        .collect(Collectors.toList());
+    List<OrderStatusHistoryResponse> statusHistory = toHistoryResponses(order);
 
     return new OrderResponse(
         order.getId(),
@@ -172,6 +168,22 @@ public final class ApiMapper {
         order.getDiscountAmount(),
         order.getTotal(),
         order.getCurrency());
+  }
+
+  public static OrderStatusResponse toStatusResponse(TacoOrder order) {
+    return new OrderStatusResponse(
+        order.getId(),order.getVersion(),
+        order.getStatus() != null ? order.getStatus().name() : null,
+        order.getStationId(),order.getCookId(),toHistoryResponses(order));
+  }
+
+  private static List<OrderStatusHistoryResponse> toHistoryResponses(
+      TacoOrder order) {
+    return (order.getStatusHistory() != null
+        ? order.getStatusHistory()
+        : Collections.<OrderStatusHistoryEntry>emptyList()).stream()
+        .map(ApiMapper::toResponse)
+        .collect(Collectors.toList());
   }
 
   private static OrderStatusHistoryResponse toResponse(

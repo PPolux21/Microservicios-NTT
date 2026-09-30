@@ -25,6 +25,7 @@ import tacos.web.api.dto.ApiDtos.OrderQuoteResponse;
 import tacos.web.api.dto.ApiDtos.ReorderRequest;
 import tacos.web.api.dto.ApiDtos.ReorderResponse;
 import tacos.web.api.dto.ApiDtos.OrderStatusChangeRequest;
+import tacos.web.api.dto.ApiDtos.OrderStatusResponse;
 import tacos.web.api.error.ApiExceptionHandler.ApiException;
 import tacos.web.api.mapper.ApiMapper;
 import tacos.web.api.mapper.ApiMapper.OrderCreateCommand;
@@ -90,13 +91,13 @@ public class OrderApiController {
   }
 
   @PatchMapping(path="/{orderId}/status",consumes="application/json")
-  public Mono<OrderResponse> changeStatus(
+  public Mono<OrderStatusResponse> changeStatus(
       @PathVariable String orderId,
       @Valid @RequestBody OrderStatusChangeRequest request,
       Authentication authentication) {
     return workflowService.transition(
         orderId,request.getStatus(),request.getReason(),authentication)
-        .map(ApiMapper::toResponse);
+        .map(ApiMapper::toStatusResponse);
   }
 
   @PostMapping(path="/{orderId}/cancel")

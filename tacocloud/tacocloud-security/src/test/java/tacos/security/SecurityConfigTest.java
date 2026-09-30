@@ -113,7 +113,40 @@ public class SecurityConfigTest {
             status().isOk());
 
     mvc.perform(
-        post("/api/kitchen/queue")
+        get("/api/kitchen/queue"))
+
+        .andExpect(
+            status().isUnauthorized());
+
+    mvc.perform(
+        get("/api/kitchen/queue")
+            .with(
+                user("cook")
+                    .roles("KITCHEN")))
+
+        .andExpect(
+            status().isOk());
+
+    mvc.perform(
+        get("/api/kitchen/queue")
+            .with(
+                user("jose")
+                    .roles("USER")))
+
+        .andExpect(
+            status().isForbidden());
+
+    mvc.perform(
+        get("/api/kitchen/queue")
+            .with(
+                user("admin")
+                    .roles("ADMIN")))
+
+        .andExpect(
+            status().isForbidden());
+
+    mvc.perform(
+        post("/api/kitchen/orders/claim")
             .with(csrf())
             .with(
                 user("cook")
@@ -123,7 +156,7 @@ public class SecurityConfigTest {
             status().isOk());
 
     mvc.perform(
-        post("/api/kitchen/queue")
+        post("/api/kitchen/orders/claim")
             .with(csrf())
             .with(
                 user("jose")
@@ -314,8 +347,14 @@ public class SecurityConfigTest {
     }
 
 
-    @PostMapping("/api/kitchen/queue")
-    public String kitchen() {
+    @GetMapping("/api/kitchen/queue")
+    public String kitchenQueue() {
+      return "ok";
+    }
+
+
+    @PostMapping("/api/kitchen/orders/claim")
+    public String kitchenClaim() {
       return "ok";
     }
 

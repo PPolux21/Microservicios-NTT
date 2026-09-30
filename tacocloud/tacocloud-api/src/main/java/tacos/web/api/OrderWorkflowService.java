@@ -86,6 +86,22 @@ public class OrderWorkflowService {
             order,Status.CANCELLED,reason,authentication,true));
   }
 
+  public void validateTransition(Status current,Status target,
+      Authentication authentication) {
+    requireAuthentication(authentication);
+    if (current == null || target == null) {
+      throw ApiException.badRequest(
+          "ORDER_STATUS_REQUIRED","Current and target status are required.");
+    }
+    Set<String> allowedRoles = rolesFor(current,target);
+    if (allowedRoles.isEmpty()) {
+      throw invalidTransition(current,target);
+    }
+    if (!hasAnyRole(authentication,allowedRoles)) {
+      throw forbiddenTransition();
+    }
+  }
+
   private Mono<TacoOrder> apply(TacoOrder order,Status target,
       String reason,Authentication authentication,boolean ownerCancellation) {
     Status current = order.getStatus() != null
@@ -105,14 +121,15 @@ public class OrderWorkflowService {
       return Mono.just(order);
     }
 
-    Set<String> allowedRoles = rolesFor(current,target);
     boolean operationMatches = target == Status.CANCELLED
         ? ownerCancellation : !ownerCancellation;
-    if (!operationMatches || allowedRoles.isEmpty()) {
+    if (!operationMatches) {
       return Mono.error(invalidTransition(current,target));
     }
-    if (!hasAnyRole(authentication,allowedRoles)) {
-      return Mono.error(forbiddenTransition());
+    try {
+      validateTransition(current,target,authentication);
+    } catch (ApiException error) {
+      return Mono.error(error);
     }
 
     String normalizedReason = normalizeReason(reason);
@@ -120,6 +137,9 @@ public class OrderWorkflowService {
     order.addStatusHistory(new OrderStatusHistoryEntry(
         current,target,Date.from(clock.instant()),authentication.getName(),
         origin(authentication),normalizedReason));
+    if (target == Status.READY || target == Status.CANCELLED) {
+      order.setActiveKitchenStationKey(null);
+    }
 
     return orders.save(order)
         .onErrorMap(OptimisticLockingFailureException.class,error ->

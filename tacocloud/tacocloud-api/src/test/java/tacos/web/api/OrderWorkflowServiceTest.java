@@ -131,6 +131,7 @@ public class OrderWorkflowServiceTest {
   public void shouldFollowHappyPathAndAppendOrderedSafeAudit() throws Exception {
     TacoOrder order = order("ORDER-1","OWNER",Status.CREATED);
     order.setVersion(0L);
+    order.setActiveKitchenStationKey("STATION-A");
     order.addStatusHistory(new OrderStatusHistoryEntry(
         null,Status.CREATED,Date.from(NOW.minusSeconds(60)),"owner",
         ChangeOrigin.USER_API,"Order created"));
@@ -151,6 +152,7 @@ public class OrderWorkflowServiceTest {
             "ORDER-1",Status.READY,"ready",cook)))
         .assertNext(saved -> {
           assertEquals(Status.READY,saved.getStatus());
+          assertEquals(null,saved.getActiveKitchenStationKey());
           assertEquals(3L,saved.getVersion());
           assertEquals(originalOwner,saved.getUserId());
           assertEquals(4,saved.getStatusHistory().size());
@@ -239,6 +241,7 @@ public class OrderWorkflowServiceTest {
   public void shouldCancelOwnerBeforeCutoffAndRemainIdempotent() {
     User owner = user("OWNER","alice");
     TacoOrder order = order("ORDER-1",owner.getId(),Status.ACCEPTED);
+    order.setActiveKitchenStationKey("station-01");
     when(users.findByUsername("alice")).thenReturn(Mono.just(owner));
     when(orders.findByIdAndUserId("ORDER-1","OWNER"))
         .thenAnswer(ignored -> Mono.just(order));
@@ -253,6 +256,7 @@ public class OrderWorkflowServiceTest {
           assertEquals(Status.CANCELLED,cancelled.getStatus());
           assertEquals(1,cancelled.getStatusHistory().size());
           assertEquals("alice",cancelled.getStatusHistory().get(0).getChangedBy());
+          assertEquals(null,cancelled.getActiveKitchenStationKey());
         })
         .verifyComplete();
 

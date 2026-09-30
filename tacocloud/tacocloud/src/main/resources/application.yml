@@ -61,6 +61,13 @@ tacocloud:
     allowed-origins: http://localhost:4200
   orders:
     max-quantity: 10
+  kitchen:
+    station-id: ${TACOCLOUD_KITCHEN_STATION_ID:station-01}
+    eta:
+      base-minutes: ${TACOCLOUD_KITCHEN_ETA_BASE:2}
+      minutes-per-queued-order: ${TACOCLOUD_KITCHEN_ETA_PER_QUEUED_ORDER:3}
+      minutes-per-item: ${TACOCLOUD_KITCHEN_ETA_PER_ITEM:2}
+      minutes-per-complexity-point: ${TACOCLOUD_KITCHEN_ETA_PER_COMPLEXITY:1}
   design-rules:
     allow-extreme-spice: false
     vegan-only: false

@@ -13,6 +13,8 @@ import org.springframework.data.annotation.Transient;
 import org.springframework.data.annotation.Version;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.index.CompoundIndexes;
+import org.springframework.data.mongodb.core.index.Indexed;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -20,8 +22,12 @@ import lombok.NoArgsConstructor;
 
 @Data
 @Document
-@CompoundIndex(name="order_user_placed_id_idx",
-    def="{'userId':1,'placedAt':-1,'_id':1}")
+@CompoundIndexes({
+    @CompoundIndex(name="order_user_placed_id_idx",
+        def="{'userId':1,'placedAt':-1,'_id':1}"),
+    @CompoundIndex(name="order_kitchen_queue_idx",
+        def="{'status':1,'placedAt':1,'_id':1}")
+})
 public class TacoOrder implements Serializable {
   private static final long serialVersionUID = 1L;
 
@@ -90,6 +96,13 @@ public class TacoOrder implements Serializable {
   }
   
   private Status status = Status.CREATED;
+
+  private String stationId;
+
+  private String cookId;
+
+  @Indexed(name="active_kitchen_station_unique",unique=true,sparse=true)
+  private String activeKitchenStationKey;
 
   private List<OrderStatusHistoryEntry> statusHistory = new ArrayList<>();
 

@@ -36,7 +36,7 @@ import tacos.web.api.mapper.ApiMapper.OrderItemCommand;
 import tacos.web.api.mapper.ApiMapper.OrderQuote;
 import tacos.web.api.mapper.ApiMapper.OrderQuoteCommand;
 import tacos.web.api.mapper.ApiMapper.TacoCommand;
-import tacos.web.api.mapper.OrderEventMapper;
+import tacos.web.api.outbox.OrderOutboxService;
 import tacos.web.api.coupon.CouponService;
 import tacos.web.api.coupon.CouponService.CouponApplication;
 import tacos.web.api.TacoClassificationService.ClassifiedTaco;
@@ -46,7 +46,6 @@ import tacos.data.OrderRepository;
 import tacos.data.PaymentMethodRepository;
 import tacos.data.ReorderAttemptRepository;
 import tacos.data.UserRepository;
-import tacos.messaging.OrderMessagingService;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -58,7 +57,7 @@ public class OrderService {
   private static final String ORDER_CURRENCY = "MXN";
 
   private OrderRepository repo;
-  private OrderMessagingService orderMessages;
+  private OrderOutboxService orderOutbox;
   private EmailOrderService emailOrderService;
   private UserRepository userRepo;
   private PaymentMethodRepository paymentMethodRepo;
@@ -72,7 +71,7 @@ public class OrderService {
 
   public OrderService(
       OrderRepository repo,
-      OrderMessagingService orderMessages,
+      OrderOutboxService orderOutbox,
       EmailOrderService emailOrderService,
       UserRepository userRepo,
       PaymentMethodRepository paymentMethodRepo,
@@ -84,7 +83,7 @@ public class OrderService {
       ReorderAttemptRepository reorderAttemptRepo) {
 
     this.repo = repo;
-    this.orderMessages = orderMessages;
+    this.orderOutbox = orderOutbox;
     this.emailOrderService = emailOrderService;
     this.userRepo = userRepo;
     this.paymentMethodRepo = paymentMethodRepo;
@@ -138,15 +137,11 @@ public class OrderService {
             .flatMap(paymentMethod -> priceOrder(
                 command,user,requestedOrderId,authentication))
             .flatMap(order -> inventoryService.reserve(order)
-                .flatMap(reservation -> repo.save(order)
+                .flatMap(reservation -> orderOutbox.saveCreated(
+                    order,UUID.randomUUID().toString())
                     .onErrorResume(saveError -> inventoryService
                         .release(reservation.getId())
-                        .then(Mono.error(saveError))))
-                .flatMap(savedOrder ->
-                  Mono.fromRunnable(() -> orderMessages.sendOrder(
-                      OrderEventMapper.orderCreated(
-                          savedOrder,UUID.randomUUID().toString())))
-                  .thenReturn(savedOrder))));
+                        .then(Mono.error(saveError))))));
   }
 
   private Mono<TacoOrder> priceOrder(OrderCreateCommand command,User user,
@@ -516,13 +511,8 @@ public class OrderService {
           return order;
         })
 
-        .flatMap(repo::save)
-
-        .flatMap(savedOrder ->
-            Mono.fromRunnable(() ->
-                orderMessages.sendOrder(OrderEventMapper.orderCreated(
-                    savedOrder,UUID.randomUUID().toString())))
-                .thenReturn(savedOrder));
+        .flatMap(order -> orderOutbox.saveCreated(
+            order,UUID.randomUUID().toString()));
   }
 
   public boolean canAccessOrder(TacoOrder order,

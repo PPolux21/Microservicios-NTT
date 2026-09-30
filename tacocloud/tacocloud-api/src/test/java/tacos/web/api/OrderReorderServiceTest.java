@@ -56,6 +56,8 @@ import tacos.web.api.coupon.CouponProperties.CouponRule;
 import tacos.web.api.coupon.CouponProperties.CouponType;
 import tacos.web.api.coupon.CouponService;
 import tacos.web.api.error.ApiExceptionHandler.ApiException;
+import tacos.web.api.mapper.OrderEventMapper;
+import tacos.web.api.outbox.OrderOutboxService;
 
 public class OrderReorderServiceTest {
 
@@ -65,6 +67,7 @@ public class OrderReorderServiceTest {
   private IngredientRepository ingredients;
   private InventoryService inventory;
   private OrderMessagingService messages;
+  private OrderOutboxService orderOutbox;
   private TacoDesignValidator validator;
   private CouponProperties couponProperties;
   private OrderService service;
@@ -81,6 +84,7 @@ public class OrderReorderServiceTest {
     ingredients = Mockito.mock(IngredientRepository.class);
     inventory = Mockito.mock(InventoryService.class);
     messages = Mockito.mock(OrderMessagingService.class);
+    orderOutbox = Mockito.mock(OrderOutboxService.class);
     validator = Mockito.mock(TacoDesignValidator.class);
     UserRepository users = Mockito.mock(UserRepository.class);
     storedOrders = new ConcurrentHashMap<>();
@@ -103,6 +107,13 @@ public class OrderReorderServiceTest {
       storedOrders.put(order.getId(),order);
       return Mono.just(order);
     });
+    when(orderOutbox.saveCreated(any(TacoOrder.class),any(String.class)))
+        .thenAnswer(invocation -> {
+          TacoOrder order = invocation.getArgument(0);
+          String correlationId = invocation.getArgument(1);
+          return orders.save(order).doOnNext(saved -> messages.sendOrder(
+              OrderEventMapper.orderCreated(saved,correlationId)));
+        });
 
     when(attempts.findById(any(String.class))).thenAnswer(invocation ->
         Mono.justOrEmpty(storedAttempts.get(invocation.getArgument(0))));
@@ -146,7 +157,7 @@ public class OrderReorderServiceTest {
         couponProperties,
         Clock.fixed(Instant.parse("2026-09-29T12:00:00Z"),ZoneOffset.UTC));
     service = new OrderService(
-        orders,messages,Mockito.mock(EmailOrderService.class),users,payments,
+        orders,orderOutbox,Mockito.mock(EmailOrderService.class),users,payments,
         ingredients,coupons,inventory,
         new TacoClassificationService(ingredients),validator,attempts);
   }
@@ -276,7 +287,7 @@ public class OrderReorderServiceTest {
     when(foreignUsers.findByUsername("bob")).thenReturn(Mono.just(bob));
     CouponService coupons = new CouponService(couponProperties,Clock.systemUTC());
     OrderService foreignService = new OrderService(
-        orders,messages,Mockito.mock(EmailOrderService.class),foreignUsers,
+        orders,orderOutbox,Mockito.mock(EmailOrderService.class),foreignUsers,
         payments,ingredients,coupons,inventory,
         new TacoClassificationService(ingredients),validator,attempts);
 

@@ -19,9 +19,8 @@ import tacos.TacoOrder.OrderStatusHistoryEntry;
 import tacos.TacoOrder.Status;
 import tacos.data.OrderRepository;
 import tacos.data.UserRepository;
-import tacos.messaging.OrderMessagingService;
 import tacos.web.api.error.ApiExceptionHandler.ApiException;
-import tacos.web.api.mapper.OrderEventMapper;
+import tacos.web.api.outbox.OrderOutboxService;
 
 @Service
 public class OrderWorkflowService {
@@ -37,16 +36,16 @@ public class OrderWorkflowService {
   private final UserRepository users;
   private final InventoryService inventory;
   private final Clock clock;
-  private final OrderMessagingService orderMessages;
+  private final OrderOutboxService orderOutbox;
 
   public OrderWorkflowService(OrderRepository orders,UserRepository users,
       InventoryService inventory,Clock clock,
-      OrderMessagingService orderMessages) {
+      OrderOutboxService orderOutbox) {
     this.orders = orders;
     this.users = users;
     this.inventory = inventory;
     this.clock = clock;
-    this.orderMessages = orderMessages;
+    this.orderOutbox = orderOutbox;
   }
 
   public Mono<TacoOrder> transition(String orderId,Status target,
@@ -147,18 +146,15 @@ public class OrderWorkflowService {
       order.setActiveKitchenStationKey(null);
     }
 
-    return orders.save(order)
+    return orderOutbox.saveStatusChanged(
+            order,current,UUID.randomUUID().toString(),normalizedReason)
         .onErrorMap(OptimisticLockingFailureException.class,error ->
             ApiException.conflict(
                 "ORDER_VERSION_CONFLICT",
                 "The order was updated concurrently. Reload and retry."))
         .flatMap(saved -> target == Status.CANCELLED
             ? inventory.release(saved.getId()).thenReturn(saved)
-            : Mono.just(saved))
-        .flatMap(saved -> Mono.fromRunnable(() ->
-            orderMessages.sendOrder(OrderEventMapper.statusChanged(
-                saved,current,UUID.randomUUID().toString(),normalizedReason)))
-            .thenReturn(saved));
+            : Mono.just(saved));
   }
 
   private Set<String> rolesFor(Status current,Status target) {

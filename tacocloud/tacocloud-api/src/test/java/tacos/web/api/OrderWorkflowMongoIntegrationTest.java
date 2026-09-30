@@ -29,6 +29,7 @@ import reactor.test.StepVerifier;
 import tacos.TacoOrder;
 import tacos.TacoOrder.Status;
 import tacos.data.OrderRepository;
+import tacos.web.api.outbox.OrderOutboxService;
 
 @SpringBootTest(
     classes=OrderWorkflowMongoIntegrationTest.TestApplication.class,
@@ -104,6 +105,16 @@ public class OrderWorkflowMongoIntegrationTest {
     @Bean
     InventoryService inventoryService() {
       return Mockito.mock(InventoryService.class);
+    }
+
+    @Bean
+    OrderOutboxService orderOutboxService(OrderRepository orders) {
+      OrderOutboxService service = Mockito.mock(OrderOutboxService.class);
+      Mockito.when(service.saveStatusChanged(
+          Mockito.any(TacoOrder.class),Mockito.any(Status.class),
+          Mockito.anyString(),Mockito.nullable(String.class)))
+          .thenAnswer(invocation -> orders.save(invocation.getArgument(0)));
+      return service;
     }
   }
 }

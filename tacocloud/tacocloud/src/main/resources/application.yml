@@ -33,6 +33,9 @@ spring:
     username: ${RABBIT_USERNAME:guest}
     password: ${RABBIT_PASSWORD:guest}
   data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017/tacocloud?replicaSet=rs0}
+      auto-index-creation: true
     rest:
       base-path: /data-api
     cassandra:
@@ -56,9 +59,6 @@ spring:
       valueSerializer: org.springframework.kafka.support.serializer.JsonSerializer
   jmx:
     enabled: true
-  mongodb:
-      auto-index-creation: true
-
 #tag::exposeAll[]
 #tag::excludeSome[]
 #tag::healthShowDetails[]
@@ -71,6 +71,15 @@ tacocloud:
       destination: ${TACOCLOUD_RABBIT_DESTINATION:tacocloud.order.queue}
     kafka:
       topic: ${TACOCLOUD_KAFKA_TOPIC:tacocloud.orders.topic}
+  outbox:
+    batch-size: ${TACOCLOUD_OUTBOX_BATCH_SIZE:20}
+    max-attempts: ${TACOCLOUD_OUTBOX_MAX_ATTEMPTS:5}
+    initial-backoff: ${TACOCLOUD_OUTBOX_INITIAL_BACKOFF:1s}
+    max-backoff: ${TACOCLOUD_OUTBOX_MAX_BACKOFF:1m}
+    claim-timeout: ${TACOCLOUD_OUTBOX_CLAIM_TIMEOUT:2m}
+    poll-interval-ms: ${TACOCLOUD_OUTBOX_POLL_INTERVAL_MS:1000}
+    publisher:
+      enabled: ${TACOCLOUD_OUTBOX_PUBLISHER_ENABLED:true}
   cors:
     allowed-origins: http://localhost:4200
   orders:

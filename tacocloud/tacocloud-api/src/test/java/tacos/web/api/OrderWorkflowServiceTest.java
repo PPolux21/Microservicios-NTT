@@ -47,6 +47,8 @@ import tacos.messaging.OrderEventType;
 import tacos.messaging.OrderMessagingService;
 import tacos.web.api.error.ApiExceptionHandler.ApiException;
 import tacos.web.api.mapper.ApiMapper;
+import tacos.web.api.mapper.OrderEventMapper;
+import tacos.web.api.outbox.OrderOutboxService;
 
 public class OrderWorkflowServiceTest {
 
@@ -56,6 +58,7 @@ public class OrderWorkflowServiceTest {
   private UserRepository users;
   private InventoryService inventory;
   private OrderMessagingService orderMessages;
+  private OrderOutboxService orderOutbox;
   private OrderWorkflowService workflow;
 
   @BeforeEach
@@ -64,8 +67,20 @@ public class OrderWorkflowServiceTest {
     users = Mockito.mock(UserRepository.class);
     inventory = Mockito.mock(InventoryService.class);
     orderMessages = Mockito.mock(OrderMessagingService.class);
+    orderOutbox = Mockito.mock(OrderOutboxService.class);
+    when(orderOutbox.saveStatusChanged(any(TacoOrder.class),any(Status.class),
+        any(String.class),org.mockito.ArgumentMatchers.nullable(String.class)))
+        .thenAnswer(invocation -> {
+          TacoOrder order = invocation.getArgument(0);
+          Status previous = invocation.getArgument(1);
+          String correlationId = invocation.getArgument(2);
+          String reason = invocation.getArgument(3);
+          return orders.save(order).doOnNext(saved -> orderMessages.sendOrder(
+              OrderEventMapper.statusChanged(
+                  saved,previous,correlationId,reason)));
+        });
     workflow = new OrderWorkflowService(
-        orders,users,inventory,Clock.fixed(NOW,ZoneOffset.UTC),orderMessages);
+        orders,users,inventory,Clock.fixed(NOW,ZoneOffset.UTC),orderOutbox);
   }
 
   @ParameterizedTest(name="{0} -> {1} as {2}: allowed={3}")

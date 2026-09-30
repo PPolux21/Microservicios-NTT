@@ -16,7 +16,6 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
 import tacos.data.OrderRepository;
-import tacos.messaging.OrderMessagingService;
 import tacos.web.api.error.ApiExceptionHandler;
 import tacos.web.api.error.ApiExceptionHandler.ApiException;
 import tacos.web.api.error.ApiProblem;
@@ -39,10 +38,6 @@ public class ApiExceptionHandlerTest {
         Mockito.mock(
             OrderRepository.class);
 
-    OrderMessagingService messages =
-        Mockito.mock(
-            OrderMessagingService.class);
-
     OrderService orderService =
         Mockito.mock(
             OrderService.class);
@@ -54,7 +49,6 @@ public class ApiExceptionHandlerTest {
     OrderApiController controller =
         new OrderApiController(
             repo,
-            messages,
             orderService,
             workflowService);
 

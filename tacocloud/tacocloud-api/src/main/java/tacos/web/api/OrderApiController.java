@@ -30,7 +30,6 @@ import tacos.web.api.error.ApiExceptionHandler.ApiException;
 import tacos.web.api.mapper.ApiMapper;
 import tacos.web.api.mapper.ApiMapper.OrderCreateCommand;
 import tacos.data.OrderRepository;
-import tacos.messaging.OrderMessagingService;
 
 @RestController
 @RequestMapping(path="/api/orders",
@@ -39,21 +38,13 @@ public class OrderApiController {
 
   private OrderRepository repo;
 
-  /*
-   * Se conserva para no modificar
-   * innecesariamente el constructor
-   * utilizado por pruebas anteriores.
-   */
-  private OrderMessagingService orderMessages;
   private OrderService orderService;
   private OrderWorkflowService workflowService;
 
   public OrderApiController(OrderRepository repo,
-                            OrderMessagingService orderMessages,
                             OrderService orderService,
                             OrderWorkflowService workflowService) {
     this.repo = repo;
-    this.orderMessages = orderMessages;
     this.orderService = orderService;
     this.workflowService = workflowService;
   }

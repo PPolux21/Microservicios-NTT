@@ -60,6 +60,8 @@ import tacos.web.api.mapper.ApiMapper.OrderCreateCommand;
 import tacos.web.api.mapper.ApiMapper.OrderItemCommand;
 import tacos.web.api.mapper.ApiMapper.TacoCommand;
 import tacos.web.api.mapper.ApiMapper.OrderQuoteCommand;
+import tacos.web.api.mapper.OrderEventMapper;
+import tacos.web.api.outbox.OrderOutboxService;
 import tacos.web.api.coupon.CouponProperties;
 import tacos.web.api.coupon.CouponProperties.CouponRule;
 import tacos.web.api.coupon.CouponProperties.CouponType;
@@ -72,6 +74,7 @@ public class OrderServiceTest {
 
   private OrderRepository repo;
   private OrderMessagingService orderMessages;
+  private OrderOutboxService orderOutbox;
   private EmailOrderService emailOrderService;
 
   private OrderService service;
@@ -90,6 +93,7 @@ public class OrderServiceTest {
     repo = Mockito.mock(OrderRepository.class);
 
     orderMessages = Mockito.mock(OrderMessagingService.class);
+    orderOutbox = Mockito.mock(OrderOutboxService.class);
 
     emailOrderService = Mockito.mock(EmailOrderService.class);
     
@@ -123,9 +127,16 @@ public class OrderServiceTest {
               order.getId(),order.getId(),Status.RESERVED,
               Collections.emptyList()));
         });
+    when(orderOutbox.saveCreated(any(TacoOrder.class),any(String.class)))
+        .thenAnswer(invocation -> {
+          TacoOrder order = invocation.getArgument(0);
+          String correlationId = invocation.getArgument(1);
+          return repo.save(order).doOnNext(saved -> orderMessages.sendOrder(
+              OrderEventMapper.orderCreated(saved,correlationId)));
+        });
 
     service = new OrderService(
-        repo,orderMessages,emailOrderService,userRepo,paymentMethodRepo,
+        repo,orderOutbox,emailOrderService,userRepo,paymentMethodRepo,
         ingredientRepo,couponService,inventoryService,classificationService,
         designValidator,reorderAttemptRepo);
   }

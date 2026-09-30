@@ -56,7 +56,7 @@ public class OrderApiControllerTest {
 
   @InjectMocks
   private OrderApiController controller = 
-      new OrderApiController(repo,orderMessages,orderService,workflowService);
+      new OrderApiController(repo,orderService,workflowService);
 
 
   /*    TC-04

@@ -137,8 +137,10 @@ public class OrderService {
             .flatMap(paymentMethod -> priceOrder(
                 command,user,requestedOrderId,authentication))
             .flatMap(order -> inventoryService.reserve(order)
-                .flatMap(reservation -> orderOutbox.saveCreated(
-                    order,UUID.randomUUID().toString())
+                .flatMap(reservation -> CorrelationIdWebFilter
+                    .currentCorrelationId()
+                    .flatMap(correlationId -> orderOutbox.saveCreated(
+                        order,correlationId))
                     .onErrorResume(saveError -> inventoryService
                         .release(reservation.getId())
                         .then(Mono.error(saveError))))));
@@ -511,8 +513,9 @@ public class OrderService {
           return order;
         })
 
-        .flatMap(order -> orderOutbox.saveCreated(
-            order,UUID.randomUUID().toString()));
+        .flatMap(order -> CorrelationIdWebFilter.currentCorrelationId()
+            .flatMap(correlationId -> orderOutbox.saveCreated(
+                order,correlationId)));
   }
 
   public boolean canAccessOrder(TacoOrder order,

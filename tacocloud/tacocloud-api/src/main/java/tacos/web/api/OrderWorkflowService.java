@@ -6,7 +6,6 @@ import java.util.Date;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.security.core.Authentication;
@@ -146,8 +145,9 @@ public class OrderWorkflowService {
       order.setActiveKitchenStationKey(null);
     }
 
-    return orderOutbox.saveStatusChanged(
-            order,current,UUID.randomUUID().toString(),normalizedReason)
+    return CorrelationIdWebFilter.currentCorrelationId()
+        .flatMap(correlationId -> orderOutbox.saveStatusChanged(
+            order,current,correlationId,normalizedReason))
         .onErrorMap(OptimisticLockingFailureException.class,error ->
             ApiException.conflict(
                 "ORDER_VERSION_CONFLICT",

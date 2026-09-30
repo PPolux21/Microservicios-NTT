@@ -1,6 +1,10 @@
 server:
   port: 8081
 
+logging:
+  pattern:
+    level: "%5p [correlationId=%X{correlationId:-none}]"
+
 tacocloud:
   messaging:
     jms:

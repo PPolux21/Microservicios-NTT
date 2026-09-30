@@ -83,6 +83,27 @@ public class OrderWorkflowServiceTest {
         orders,users,inventory,Clock.fixed(NOW,ZoneOffset.UTC),orderOutbox);
   }
 
+  @Test
+  public void shouldPropagateReactorCorrelationToStatusEvent() {
+    TacoOrder order = order("ORDER-CORRELATION","OWNER",Status.ACCEPTED);
+    when(orders.findById("ORDER-CORRELATION")).thenReturn(Mono.just(order));
+    when(orders.save(any(TacoOrder.class)))
+        .thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
+
+    StepVerifier.create(workflow.transition(
+            "ORDER-CORRELATION",Status.PREPARING,"start cooking",
+            authentication("cook","ROLE_KITCHEN"))
+        .contextWrite(context -> context.put(
+            CorrelationIdWebFilter.CONTEXT_KEY,"http-status-31")))
+        .expectNextCount(1)
+        .verifyComplete();
+
+    ArgumentCaptor<OrderEvent> event = ArgumentCaptor.forClass(OrderEvent.class);
+    verify(orderMessages).sendOrder(event.capture());
+    assertEquals("http-status-31",event.getValue().getCorrelationId());
+    assertEquals(OrderEventType.STATUS_CHANGED,event.getValue().getEventType());
+  }
+
   @ParameterizedTest(name="{0} -> {1} as {2}: allowed={3}")
   @MethodSource("statusMatrix")
   public void shouldEnforceCompleteStatusAndRoleMatrix(

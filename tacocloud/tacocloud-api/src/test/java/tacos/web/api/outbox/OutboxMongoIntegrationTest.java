@@ -56,6 +56,7 @@ import tacos.messaging.OrderEvent;
 import tacos.messaging.OrderEventPayload;
 import tacos.messaging.OrderEventType;
 import tacos.messaging.OrderMessagingService;
+import tacos.web.api.CorrelationIdWebFilter;
 import tacos.web.api.mapper.OrderEventMapper;
 
 @Testcontainers
@@ -93,7 +94,10 @@ public class OutboxMongoIntegrationTest {
   public void shouldCommitOrderAndOutboxInOneRealMongoTransaction() {
     TacoOrder order = order("ORDER-COMMIT");
 
-    StepVerifier.create(orderOutbox.saveCreated(order,"corr-commit"))
+    StepVerifier.create(CorrelationIdWebFilter.currentCorrelationId()
+        .flatMap(correlationId -> orderOutbox.saveCreated(order,correlationId))
+        .contextWrite(context -> context.put(
+            CorrelationIdWebFilter.CONTEXT_KEY,"corr-commit")))
         .expectNextMatches(saved -> "ORDER-COMMIT".equals(saved.getId()))
         .verifyComplete();
 
@@ -106,6 +110,7 @@ public class OutboxMongoIntegrationTest {
           assertEquals(OrderEventType.ORDER_CREATED,record.getEventType());
           assertEquals("ORDER-COMMIT",record.getEvent().getPayload().getOrderId());
           assertEquals(record.getEventId(),record.getEvent().getEventId());
+          assertEquals("corr-commit",record.getEvent().getCorrelationId());
         })
         .verifyComplete();
   }

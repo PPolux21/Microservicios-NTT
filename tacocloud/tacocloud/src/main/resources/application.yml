@@ -9,7 +9,9 @@ taco:
 
 
 
-#logging:
+logging:
+  pattern:
+    level: "%5p [correlationId=%X{correlationId:-none}]"
 #  level:
 #    org.springframework.data.rest: debug
 

@@ -426,6 +426,28 @@ public class OrderServiceTest {
   }
 
   @Test
+  public void shouldPropagateReactorCorrelationToCreatedEvent() {
+    Authentication authentication = authenticatedUserWithPayment();
+    when(ingredientRepo.findById("FLTO"))
+        .thenReturn(Mono.just(catalogIngredient("FLTO","10.00")));
+    when(repo.save(any(TacoOrder.class)))
+        .thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
+
+    StepVerifier.create(service.createOrder(
+            orderCommand(1,"FLTO"),authentication)
+        .contextWrite(context -> context.put(
+            CorrelationIdWebFilter.CONTEXT_KEY,"http-create-31")))
+        .expectNextCount(1)
+        .verifyComplete();
+
+    ArgumentCaptor<OrderEvent> event = ArgumentCaptor.forClass(OrderEvent.class);
+    verify(orderMessages).sendOrder(event.capture());
+    assertEquals("http-create-31",event.getValue().getCorrelationId());
+    assertFalse(event.getValue().getEventId().toString().equals(
+        event.getValue().getPayload().getOrderId()));
+  }
+
+  @Test
   public void shouldRejectPaymentMethodOwnedByAnotherUser() {
 
     User authenticatedUser = Mockito.mock(User.class);

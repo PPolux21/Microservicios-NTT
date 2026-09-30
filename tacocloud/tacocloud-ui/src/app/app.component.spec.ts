@@ -110,7 +110,7 @@ describe('AppComponent', () => {
     component.onSubmit();
 
     expect(requests.length).toBe(2);
-    expect(requests[1].url).toContain('/api/orders');
+    expect(requests[1].url).toContain('/api/v1/orders');
     expect(requests[1].body.items[0].quantity).toBe(2);
     expect(requests[1].body.items[0].taco.ingredientIds)
       .toEqual(['FLTO','CHED']);
@@ -132,7 +132,7 @@ describe('AppComponent', () => {
     service.getRecentTacos().subscribe(page => expect(page.items).toEqual([]));
 
     expect(requestedPath)
-      .toBe('/api/tacos?page=0&size=12&sort=createdAt%2Cdesc');
+      .toBe('/api/v1/tacos?page=0&size=12&sort=createdAt%2Cdesc');
     expect(requestedPath).not.toContain('/tacos?recent');
   });
 
@@ -159,10 +159,10 @@ describe('AppComponent', () => {
     service.removeFavorite('TACO-1').subscribe();
 
     expect(requests[0].path)
-      .toBe('/api/users/me/favorites?page=0&size=50');
+      .toBe('/api/v1/users/me/favorites?page=0&size=50');
     expect(requests[1])
-      .toEqual({method: 'PUT', path: '/api/users/me/favorites/TACO-1', body: {}});
-    expect(requests[2].path).toBe('/api/users/me/favorites/TACO-1');
+      .toEqual({method: 'PUT', path: '/api/v1/users/me/favorites/TACO-1', body: {}});
+    expect(requests[2].path).toBe('/api/v1/users/me/favorites/TACO-1');
     expect(JSON.stringify(requests)).not.toContain('userId');
   });
 
@@ -197,8 +197,8 @@ describe('AppComponent', () => {
     service.getMyOrders().subscribe(page => expect(page.items[0].id).toBe('ORDER-1'));
     service.getMyOrder('ORDER-1').subscribe(order => expect(order.id).toBe('ORDER-1'));
 
-    expect(requests[0]).toBe('/api/users/me/orders?page=0&size=10');
-    expect(requests[1]).toBe('/api/users/me/orders/ORDER-1');
+    expect(requests[0]).toBe('/api/v1/users/me/orders?page=0&size=10');
+    expect(requests[1]).toBe('/api/v1/users/me/orders/ORDER-1');
     expect(JSON.stringify(requests)).not.toContain('userId');
   });
 
@@ -223,10 +223,10 @@ describe('AppComponent', () => {
 
     expect(requests[0]).toEqual({
       method: 'PUT',
-      path: '/api/tacos/TACO-1/rating',
+      path: '/api/v1/tacos/TACO-1/rating',
       body: {score: 4}
     });
-    expect(requests[1].path).toBe('/api/tacos/top?limit=10');
+    expect(requests[1].path).toBe('/api/v1/tacos/top?limit=10');
     expect(JSON.stringify(requests)).not.toContain('userId');
   });
 });

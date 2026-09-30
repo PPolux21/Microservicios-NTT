@@ -2,6 +2,8 @@ package tacos.web.api;
 
 import java.net.URI;
 
+import javax.servlet.http.HttpServletRequest;
+
 import org.springframework.security.core.Authentication;
 
 import javax.validation.Valid;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import reactor.core.publisher.Mono;
 import tacos.web.api.dto.ApiDtos.OrderCreateRequest;
@@ -34,7 +37,7 @@ import tacos.web.api.mapper.ApiMapper.OrderCreateCommand;
 import tacos.data.OrderRepository;
 
 @RestController
-@RequestMapping(path="/api/orders",
+@RequestMapping(path={"/api/orders","/api/v1/orders"},
                 produces="application/json")
 public class OrderApiController {
 
@@ -56,7 +59,8 @@ public class OrderApiController {
       @Valid @RequestBody OrderCreateRequest request,
       @RequestHeader(name="Idempotency-Key",required=false)
       String idempotencyKey,
-      Authentication authentication) {
+      Authentication authentication,
+      HttpServletRequest servletRequest) {
 
     OrderCreateCommand command = ApiMapper.toCommand(request);
 
@@ -67,8 +71,12 @@ public class OrderApiController {
         if (result.isReplayed()) {
           return ResponseEntity.ok(response);
         }
-        return ResponseEntity.created(URI.create(
-            "/api/orders/" + result.getOrder().getId())).body(response);
+        URI location = ServletUriComponentsBuilder
+            .fromRequestUri(servletRequest)
+            .pathSegment(result.getOrder().getId())
+            .build()
+            .toUri();
+        return ResponseEntity.created(location).body(response);
       });
   }
 

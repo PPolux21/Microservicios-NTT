@@ -34,13 +34,13 @@ public class KitchenUITest {
         + "\"stationId\":\"STATION-A\",\"cookId\":\"cook-a\","
         + "\"estimatedPrepMinutes\":9,\"items\":[]}";
 
-    server.expect(once(),requestTo("http://api.test/api/kitchen/queue"))
+    server.expect(once(),requestTo("http://api.test/api/v1/kitchen/queue"))
         .andExpect(method(HttpMethod.GET))
         .andRespond(withSuccess("[" + order + "]",MediaType.APPLICATION_JSON));
-    server.expect(once(),requestTo("http://api.test/api/kitchen/orders/claim"))
+    server.expect(once(),requestTo("http://api.test/api/v1/kitchen/orders/claim"))
         .andExpect(method(HttpMethod.POST))
         .andRespond(withSuccess(order,MediaType.APPLICATION_JSON));
-    server.expect(once(),requestTo("http://api.test/api/orders/ORDER-1/status"))
+    server.expect(once(),requestTo("http://api.test/api/v1/orders/ORDER-1/status"))
         .andExpect(method(HttpMethod.PATCH))
         .andExpect(content().json("{\"status\":\"PREPARING\"}"))
         .andRespond(withSuccess(

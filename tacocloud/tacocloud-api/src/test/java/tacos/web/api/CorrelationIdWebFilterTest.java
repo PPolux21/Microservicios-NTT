@@ -71,6 +71,28 @@ public class CorrelationIdWebFilterTest {
   }
 
   @Test
+  public void shouldDeprecateOnlyLegacyVersionedApiRoutes() {
+    MockServerWebExchange legacy = exchange("/api/orders",null);
+    filter.filter(legacy,ignored -> Mono.empty()).block();
+    assertEquals("true",legacy.getResponse().getHeaders().getFirst(
+        CorrelationIdWebFilter.DEPRECATION_HEADER));
+    assertEquals("</api/v1/orders>; rel=\"successor-version\"",
+        legacy.getResponse().getHeaders().getFirst(
+            CorrelationIdWebFilter.LINK_HEADER));
+
+    MockServerWebExchange versioned = exchange("/api/v1/orders",null);
+    filter.filter(versioned,ignored -> Mono.empty()).block();
+    assertNull(versioned.getResponse().getHeaders().getFirst(
+        CorrelationIdWebFilter.DEPRECATION_HEADER));
+
+    MockServerWebExchange tokenization =
+        exchange("/api/payment-methods/tokenize",null);
+    filter.filter(tokenization,ignored -> Mono.empty()).block();
+    assertNull(tokenization.getResponse().getHeaders().getFirst(
+        CorrelationIdWebFilter.DEPRECATION_HEADER));
+  }
+
+  @Test
   public void shouldLogEachRequestWithItsOwnIdAndCleanMdc() {
     Logger logger = (Logger) LoggerFactory.getLogger(
         CorrelationIdWebFilter.class);

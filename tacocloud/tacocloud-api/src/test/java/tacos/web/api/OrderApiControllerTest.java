@@ -18,6 +18,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
+import org.springframework.mock.web.MockHttpServletRequest;
 
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -66,6 +67,8 @@ public class OrderApiControllerTest {
     Authentication authentication = org.mockito.Mockito.mock(Authentication.class);
     TacoOrder order = new TacoOrder();
     order.setId("ORDER-1");
+    MockHttpServletRequest servletRequest =
+        new MockHttpServletRequest("POST","/api/orders");
 
     when(orderService.createOrder(
         any(tacos.web.api.mapper.ApiMapper.OrderCreateCommand.class),
@@ -75,17 +78,17 @@ public class OrderApiControllerTest {
         .thenReturn(Mono.just(new PlacementResult(order,true)));
 
     StepVerifier.create(controller.postOrder(
-        request,"order-key-123",authentication))
+        request,"order-key-123",authentication,servletRequest))
         .assertNext(response -> {
           assertEquals(HttpStatus.CREATED,response.getStatusCode());
-          assertEquals("/api/orders/ORDER-1",
-              response.getHeaders().getLocation().toString());
+          assertTrue(response.getHeaders().getLocation().toString()
+              .endsWith("/api/orders/ORDER-1"));
           assertEquals("ORDER-1",response.getBody().getId());
         })
         .verifyComplete();
 
     StepVerifier.create(controller.postOrder(
-        request,"order-key-123",authentication))
+        request,"order-key-123",authentication,servletRequest))
         .assertNext(response -> {
           assertEquals(HttpStatus.OK,response.getStatusCode());
           assertEquals("ORDER-1",response.getBody().getId());

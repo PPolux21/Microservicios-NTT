@@ -23,7 +23,7 @@ import tacos.web.api.error.ApiExceptionHandler.ApiException;
 import tacos.web.api.mapper.ApiMapper;
 
 @RestController
-@RequestMapping(path="/api/tacos",produces="application/json")
+@RequestMapping(path={"/api/tacos","/api/v1/tacos"},produces="application/json")
 public class TacoRatingController {
 
   private final TacoRatingService ratingService;

@@ -27,6 +27,8 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.reactive.server.EntityExchangeResult;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.test.web.servlet.client.MockMvcWebTestClient;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -54,8 +56,7 @@ public class IngredientControllerTest {
     IngredientRepository ingredientRepo = Mockito.mock(IngredientRepository.class);
     Ingredient testIngredient = new Ingredient("FLTO", "Flour Tortilla", Type.WRAP);
 
-    WebTestClient testClient = WebTestClient.bindToController(
-        new IngredientController(ingredientRepo)).build();
+    WebTestClient testClient = client(ingredientRepo);
 
     testClient.put()
         .uri("/api/ingredients/COTO")
@@ -73,8 +74,7 @@ public class IngredientControllerTest {
 
     when(ingredientRepo.findById(any(String.class))).thenReturn(Mono.empty());
 
-    WebTestClient testClient = WebTestClient.bindToController(
-        new IngredientController(ingredientRepo)).build();
+    WebTestClient testClient = client(ingredientRepo);
 
     testClient.put()
         .uri("/api/ingredients/FLTO")
@@ -93,8 +93,7 @@ public class IngredientControllerTest {
     when(ingredientRepo.findById(any(String.class))).thenReturn(Mono.just(testIngredient));
     when(ingredientRepo.save(any(Ingredient.class))).thenReturn(Mono.just(testIngredient));
 
-    WebTestClient testClient = WebTestClient.bindToController(
-        new IngredientController(ingredientRepo)).build();
+    WebTestClient testClient = client(ingredientRepo);
 
     testClient.put()
         .uri("/api/ingredients/FLTO")
@@ -138,8 +137,7 @@ public class IngredientControllerTest {
 
     when(ingredientRepo.findById(any(String.class))).thenReturn(Mono.empty());
 
-    WebTestClient testClient = WebTestClient.bindToController(
-        new IngredientController(ingredientRepo)).build();
+    WebTestClient testClient = client(ingredientRepo);
 
     testClient.delete()
         .uri("/api/ingredients/1234")
@@ -159,8 +157,7 @@ public class IngredientControllerTest {
     when(ingredientRepo.findById(any(String.class))).thenReturn(Mono.just(testIngredient));
     when(ingredientRepo.deleteById(any(String.class))).thenReturn(Mono.empty());
 
-    WebTestClient testClient = WebTestClient.bindToController(
-        new IngredientController(ingredientRepo)).build();
+    WebTestClient testClient = client(ingredientRepo);
 
     testClient.delete()
         .uri("/api/ingredients/FLTO")
@@ -256,7 +253,7 @@ public class IngredientControllerTest {
   public void shouldReturnBadRequestWhenIngredientBodyIsInvalid() {
     IngredientRepository ingredientRepo = Mockito.mock(IngredientRepository.class);
     
-    WebTestClient testClient = WebTestClient.bindToController(new IngredientController(ingredientRepo)).build();
+    WebTestClient testClient = client(ingredientRepo);
 
     String invalidIngredient =
         "{"
@@ -446,5 +443,20 @@ public class IngredientControllerTest {
   private void assertApiStatus(Throwable error,int expectedStatus) {
     assertTrue(error instanceof ApiException);
     assertEquals(expectedStatus,((ApiException) error).getStatus().value());
+  }
+
+  private WebTestClient client(IngredientRepository ingredientRepo) {
+    return WebTestClient.bindToController(new IngredientController(ingredientRepo))
+        .controllerAdvice(new TestApiExceptionHandler())
+        .build();
+  }
+
+  @RestControllerAdvice
+  private static class TestApiExceptionHandler {
+
+    @ExceptionHandler(ApiException.class)
+    ResponseEntity<Void> handle(ApiException error) {
+      return ResponseEntity.status(error.getStatus()).build();
+    }
   }
 }

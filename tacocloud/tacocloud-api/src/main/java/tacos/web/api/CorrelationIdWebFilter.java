@@ -20,6 +20,8 @@ import reactor.core.publisher.Mono;
 public class CorrelationIdWebFilter implements WebFilter {
 
   public static final String HEADER_NAME = "X-Correlation-Id";
+  public static final String DEPRECATION_HEADER = "Deprecation";
+  public static final String LINK_HEADER = "Link";
   public static final String CONTEXT_KEY = "correlationId";
   public static final String MDC_KEY = "correlationId";
   static final int MAX_LENGTH = 64;
@@ -34,6 +36,7 @@ public class CorrelationIdWebFilter implements WebFilter {
     String correlationId = resolveCorrelationId(
         exchange.getRequest().getHeaders().getFirst(HEADER_NAME));
     exchange.getResponse().getHeaders().set(HEADER_NAME,correlationId);
+    addLegacyDeprecationHeaders(exchange);
 
     withMdc(correlationId,() -> LOGGER.info(
         "HTTP request started method={} path={}",
@@ -61,6 +64,18 @@ public class CorrelationIdWebFilter implements WebFilter {
   static String resolveCorrelationId(String candidate) {
     return candidate != null && VALID_VALUE.matcher(candidate).matches()
         ? candidate : UUID.randomUUID().toString();
+  }
+
+  private static void addLegacyDeprecationHeaders(ServerWebExchange exchange) {
+    String path = exchange.getRequest().getPath().pathWithinApplication().value();
+    if (path.startsWith("/api/")
+        && !path.startsWith("/api/v1/")
+        && !path.startsWith("/api/payment-methods")) {
+      String successor = "/api/v1" + path.substring("/api".length());
+      exchange.getResponse().getHeaders().set(DEPRECATION_HEADER,"true");
+      exchange.getResponse().getHeaders().set(
+          LINK_HEADER,"<" + successor + ">; rel=\"successor-version\"");
+    }
   }
 
   private static void withMdc(String correlationId,Runnable action) {

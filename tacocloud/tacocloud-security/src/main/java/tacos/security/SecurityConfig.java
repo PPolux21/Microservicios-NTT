@@ -65,78 +65,93 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
         .antMatchers(
             HttpMethod.GET,
             "/api/tacos/**",
-            "/api/ingredients/**")
+            "/api/ingredients/**",
+            "/api/v1/tacos/**",
+            "/api/v1/ingredients/**")
         .permitAll()
         
         .antMatchers(
             HttpMethod.POST,
-            "/api/tacos/**")
+            "/api/tacos/**",
+            "/api/v1/tacos/**")
         .hasAnyRole(
             "USER",
             "ADMIN")
 
         .antMatchers(
             HttpMethod.PUT,
-            "/api/tacos/*/rating")
+            "/api/tacos/*/rating",
+            "/api/v1/tacos/*/rating")
         .hasAnyRole(
             "USER",
             "ADMIN")
 
         .antMatchers(
-            "/api/users/me/favorites/**")
+            "/api/users/me/favorites/**",
+            "/api/v1/users/me/favorites/**")
         .hasAnyRole(
             "USER",
             "ADMIN")
 
         .antMatchers(
-            "/api/users/me/orders/**")
+            "/api/users/me/orders/**",
+            "/api/v1/users/me/orders/**")
         .hasAnyRole(
             "USER",
             "ADMIN")
 
         .antMatchers(
-            "/api/admin/orders/**")
+            "/api/admin/orders/**",
+            "/api/v1/admin/orders/**")
         .hasRole("ADMIN")
 
         .antMatchers(
-            "/api/admin/ingredients/**")
+            "/api/admin/ingredients/**",
+            "/api/v1/admin/ingredients/**")
         .hasRole("ADMIN")
 
         .antMatchers(
-            "/api/admin/announcements/**")
+            "/api/admin/announcements/**",
+            "/api/v1/admin/announcements/**")
         .hasRole("ADMIN")
 
         .antMatchers(
-            "/api/ingredients/**")
+            "/api/ingredients/**",
+            "/api/v1/ingredients/**")
         .hasRole("ADMIN")
         
         .antMatchers(
             HttpMethod.POST,
-            "/api/orders/fromEmail")
+            "/api/orders/fromEmail",
+            "/api/v1/orders/fromEmail")
         .hasRole("ADMIN")
 
         .antMatchers(
             HttpMethod.PATCH,
-            "/api/orders/*/status")
+            "/api/orders/*/status",
+            "/api/v1/orders/*/status")
         .hasAnyRole(
             "KITCHEN",
             "ADMIN")
 
         .antMatchers(
             HttpMethod.POST,
-            "/api/orders/*/cancel")
+            "/api/orders/*/cancel",
+            "/api/v1/orders/*/cancel")
         .hasAnyRole(
             "USER",
             "ADMIN")
         
         .antMatchers(
-            "/api/orders/**")
+            "/api/orders/**",
+            "/api/v1/orders/**")
         .hasAnyRole(
             "USER",
             "ADMIN")
         
             .antMatchers(
-            "/api/kitchen/**")
+            "/api/kitchen/**",
+            "/api/v1/kitchen/**")
         .hasRole("KITCHEN")
         
         .antMatchers(
@@ -208,8 +223,12 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
         Arrays.asList(
             "GET","POST","PUT","PATCH","DELETE","OPTIONS"));
 
-    configuration.setAllowedHeaders(
-        Arrays.asList("Authorization","Content-Type","X-Requested-With"));
+    configuration.setAllowedHeaders(Arrays.asList(
+        "Authorization","Content-Type","X-Requested-With",
+        "Idempotency-Key","X-Correlation-Id"));
+
+    configuration.setExposedHeaders(Arrays.asList(
+        "Location","X-Correlation-Id","Deprecation","Link"));
 
     configuration.setAllowCredentials(true);
 

@@ -27,7 +27,7 @@ import tacos.OpsAnnouncement;
 import tacos.OpsAnnouncement.Severity;
 
 @RestController
-@RequestMapping("/api/admin/announcements")
+@RequestMapping({"/api/admin/announcements","/api/v1/admin/announcements"})
 public class AnnouncementController {
 
   private final AnnouncementService announcements;

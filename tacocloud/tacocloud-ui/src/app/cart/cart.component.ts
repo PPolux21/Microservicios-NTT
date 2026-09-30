@@ -73,11 +73,15 @@ export class CartComponent implements OnInit {
           this.model.cardNumber = '';
           this.model.cvv = '';
 
+          const idempotencyKey = 'ui-' + Date.now().toString(36)
+              + '-' + Math.random().toString(36).slice(2, 10);
+
           this.httpClient.post(
-              'http://localhost:8080/api/orders',
+              'http://localhost:8080/api/v1/orders',
               orderRequest, {
                 headers: new HttpHeaders().set('Content-type', 'application/json')
-                        .set('Accept', 'application/json'),
+                        .set('Accept', 'application/json')
+                        .set('Idempotency-Key', idempotencyKey),
               }).subscribe(r => this.cart.emptyCart());
         });
 

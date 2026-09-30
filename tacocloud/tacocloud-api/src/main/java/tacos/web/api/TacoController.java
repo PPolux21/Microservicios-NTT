@@ -35,7 +35,7 @@ import tacos.web.api.mapper.ApiMapper;
 import tacos.web.api.TacoClassificationService.ClassifiedTaco;
 
 @RestController
-@RequestMapping(path = "/api/tacos", produces = "application/json")
+@RequestMapping(path={"/api/tacos","/api/v1/tacos"},produces="application/json")
 public class TacoController {
   private TacoRepository tacoRepo;
   private TacoClassificationService classificationService;

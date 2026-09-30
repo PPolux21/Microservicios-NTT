@@ -1,0 +1,1387 @@
+openapi: 3.0.3
+info:
+  title: TacoCloud Public API
+  version: 1.0.0
+  description: |
+    Contrato HTTP público v1. Las rutas equivalentes bajo `/api` son aliases
+    temporales y responden con `Deprecation` y `Link` hacia su sucesor v1.
+    La versión HTTP es independiente de la versión del contrato de eventos.
+servers:
+  - url: /
+tags:
+  - name: Ingredients
+  - name: Tacos
+  - name: Ratings
+  - name: Favorites
+  - name: Orders
+  - name: Kitchen
+  - name: Administration
+security:
+  - basicAuth: []
+paths:
+  /api/v1/ingredients:
+    get:
+      tags: [Ingredients]
+      summary: List public ingredients
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Public ingredient catalog
+          headers:
+            X-Correlation-Id:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/IngredientResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    post:
+      tags: [Ingredients]
+      summary: Create an ingredient
+      description: Requires ADMIN.
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngredientRequest'
+      responses:
+        '201':
+          description: Ingredient created
+          headers:
+            Location:
+              description: URI of the created ingredient
+              schema: {type: string, format: uri}
+            X-Correlation-Id:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngredientResponse'
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/ingredients/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IngredientId'
+      - $ref: '#/components/parameters/CorrelationId'
+    get:
+      tags: [Ingredients]
+      summary: Get an ingredient
+      security: []
+      responses:
+        '200':
+          description: Ingredient found
+          headers:
+            X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/IngredientResponse'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      tags: [Ingredients]
+      summary: Replace public ingredient attributes
+      description: Requires ADMIN; body id must equal path id.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/IngredientRequest'}
+      responses:
+        '200':
+          description: Ingredient updated
+          headers:
+            X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/IngredientResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    delete:
+      tags: [Ingredients]
+      summary: Delete an ingredient
+      description: Requires ADMIN.
+      responses:
+        '204': {$ref: '#/components/responses/NoContent'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/admin/ingredients/{id}/catalog:
+    parameters:
+      - $ref: '#/components/parameters/IngredientId'
+      - $ref: '#/components/parameters/CorrelationId'
+    patch:
+      tags: [Administration]
+      summary: Update operational catalog fields
+      description: Requires ADMIN and optimistic version.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/IngredientCatalogUpdateRequest'}
+      responses:
+        '200':
+          description: Catalog updated
+          headers:
+            X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/IngredientAdminResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/Unprocessable'}
+  /api/v1/admin/ingredients/{id}/stock-adjustments:
+    parameters:
+      - $ref: '#/components/parameters/IngredientId'
+      - $ref: '#/components/parameters/CorrelationId'
+    post:
+      tags: [Administration]
+      summary: Adjust ingredient stock
+      description: Requires ADMIN and optimistic version.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/StockAdjustmentRequest'}
+      responses:
+        '200':
+          description: Stock adjusted
+          headers:
+            X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/IngredientAdminResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/Unprocessable'}
+  /api/v1/tacos:
+    get:
+      tags: [Tacos]
+      summary: Search the taco catalog
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - {name: name, in: query, schema: {type: string, maxLength: 50}, example: veggie}
+        - {name: ingredientId, in: query, schema: {type: string, maxLength: 20}, example: FLTO}
+        - {name: diet, in: query, schema: {$ref: '#/components/schemas/DietaryTag'}}
+        - {name: excludeAllergen, in: query, schema: {$ref: '#/components/schemas/Allergen'}}
+        - {name: spice, in: query, schema: {$ref: '#/components/schemas/SpiceLevel'}}
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/Size'}
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: ['createdAt,desc', 'createdAt,asc', 'name,desc', 'name,asc', 'id,desc', 'id,asc']
+          example: createdAt,desc
+      responses:
+        '200':
+          description: Paged taco catalog
+          headers:
+            X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TacoSearchResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '422': {$ref: '#/components/responses/Unprocessable'}
+    post:
+      tags: [Tacos]
+      summary: Publish a taco design
+      description: Requires USER or ADMIN. Only name and ingredient references are accepted contractually.
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/TacoCreateRequest'}
+      responses:
+        '201':
+          description: Taco created
+          headers:
+            X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TacoCatalogResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '422': {$ref: '#/components/responses/Unprocessable'}
+  /api/v1/tacos/today:
+    get:
+      tags: [Tacos]
+      summary: Get the deterministic taco of the day
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Daily recommendation
+          headers:
+            X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DailyTacoResponse'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/tacos/validate:
+    post:
+      tags: [Tacos]
+      summary: Validate a taco design without saving it
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/TacoDesignRequest'}
+      responses:
+        '200':
+          description: Validation result
+          headers:
+            X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TacoDesignValidationResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/tacos/top:
+    get:
+      tags: [Ratings]
+      summary: Get top-rated tacos
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 50, default: 10}
+          example: 10
+      responses:
+        '200':
+          description: Aggregated ranking
+          headers:
+            X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/TopTacoRatingResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+  /api/v1/tacos/{id}:
+    parameters:
+      - $ref: '#/components/parameters/TacoId'
+      - $ref: '#/components/parameters/CorrelationId'
+    get:
+      tags: [Tacos]
+      summary: Get a taco
+      security: []
+      responses:
+        '200':
+          description: Taco found
+          headers:
+            X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TacoCatalogResponse'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/tacos/{id}/classification:
+    parameters:
+      - $ref: '#/components/parameters/TacoId'
+      - $ref: '#/components/parameters/CorrelationId'
+    get:
+      tags: [Tacos]
+      summary: Get derived dietary classification
+      security: []
+      responses:
+        '200':
+          description: Taco classification
+          headers:
+            X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TacoClassificationResponse'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/tacos/{id}/rating:
+    parameters:
+      - $ref: '#/components/parameters/TacoId'
+      - $ref: '#/components/parameters/CorrelationId'
+    put:
+      tags: [Ratings]
+      summary: Set the authenticated user's rating
+      description: Requires USER or ADMIN; repeating PUT replaces that user's score.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RatingRequest'}
+      responses:
+        '204': {$ref: '#/components/responses/NoContent'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/users/me/favorites:
+    get:
+      tags: [Favorites]
+      summary: List the authenticated user's favorites
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Favorite taco page
+          headers:
+            X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FavoritePageResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '422': {$ref: '#/components/responses/Unprocessable'}
+  /api/v1/users/me/favorites/{tacoId}:
+    parameters:
+      - name: tacoId
+        in: path
+        required: true
+        schema: {type: string}
+      - $ref: '#/components/parameters/CorrelationId'
+    put:
+      tags: [Favorites]
+      summary: Mark a taco as favorite
+      responses:
+        '204': {$ref: '#/components/responses/NoContent'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    delete:
+      tags: [Favorites]
+      summary: Remove a taco from favorites
+      responses:
+        '204': {$ref: '#/components/responses/NoContent'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/users/me/orders:
+    get:
+      tags: [Orders]
+      summary: List the authenticated user's order history
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Private order history page
+          headers:
+            X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OrderHistoryPageResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '422': {$ref: '#/components/responses/Unprocessable'}
+  /api/v1/users/me/orders/{orderId}:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+      - $ref: '#/components/parameters/CorrelationId'
+    get:
+      tags: [Orders]
+      summary: Get one owned order
+      responses:
+        '200':
+          description: Safe order detail
+          headers:
+            X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OrderResponse'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/admin/orders:
+    get:
+      tags: [Administration]
+      summary: List orders for administration
+      description: Requires ADMIN; optional userId filters the administrative result.
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - {name: userId, in: query, schema: {type: string}}
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Administrative order history
+          headers:
+            X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OrderHistoryPageResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '422': {$ref: '#/components/responses/Unprocessable'}
+  /api/v1/orders:
+    post:
+      tags: [Orders]
+      summary: Create an order idempotently
+      description: |
+        Requires USER or ADMIN. The first committed request returns 201. Repeating
+        the same request with the same key returns 200 and the same order. Reusing
+        the key with a different request returns 409.
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/OrderCreateRequest'}
+            examples:
+              order:
+                value:
+                  deliveryName: Cliente Demo
+                  deliveryStreet: Calle Ejemplo 10
+                  deliveryCity: Aguascalientes
+                  deliveryState: AGS
+                  deliveryZip: '20000'
+                  paymentMethodId: PAYMENT-1
+                  items:
+                    - taco:
+                        name: Veggie Taco
+                        ingredientIds: [FLTO, LETC]
+                      quantity: 2
+      responses:
+        '200':
+          description: Previously completed idempotent result
+          headers:
+            X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OrderResponse'}
+        '201':
+          description: Newly created order
+          headers:
+            Location:
+              description: URI of the created v1 order resource
+              schema: {type: string, format: uri}
+            X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OrderResponse'}
+              examples:
+                created:
+                  value:
+                    id: ORDER-1
+                    version: 0
+                    deliveryName: Cliente Demo
+                    deliveryStreet: Calle Ejemplo 10
+                    deliveryCity: Aguascalientes
+                    deliveryState: AGS
+                    deliveryZip: '20000'
+                    placedAt: '2026-09-30T18:00:00Z'
+                    status: CREATED
+                    statusHistory: []
+                    tacos: []
+                    items: []
+                    subtotal: 20.00
+                    appliedCouponCode: null
+                    discountAmount: 0.00
+                    total: 20.00
+                    currency: MXN
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/Unprocessable'}
+  /api/v1/orders/quote:
+    post:
+      tags: [Orders]
+      summary: Quote an order without creating it
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/OrderQuoteRequest'}
+      responses:
+        '200':
+          description: Current server-side quote
+          headers:
+            X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OrderQuoteResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '422': {$ref: '#/components/responses/Unprocessable'}
+  /api/v1/orders/{orderId}/reorder:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+      - $ref: '#/components/parameters/CorrelationId'
+      - $ref: '#/components/parameters/IdempotencyKey'
+    post:
+      tags: [Orders]
+      summary: Reorder an owned historical order with current rules
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ReorderRequest'}
+      responses:
+        '200':
+          description: Quote requiring confirmation or created reorder result
+          headers:
+            X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReorderResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/Unprocessable'}
+  /api/v1/orders/{orderId}/status:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+      - $ref: '#/components/parameters/CorrelationId'
+    patch:
+      tags: [Kitchen]
+      summary: Transition an order through the workflow
+      description: Requires KITCHEN or ADMIN; valid transitions remain server-defined.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/OrderStatusChangeRequest'}
+      responses:
+        '200':
+          description: Updated workflow snapshot
+          headers:
+            X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OrderStatusResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/orders/{orderId}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+      - $ref: '#/components/parameters/CorrelationId'
+    post:
+      tags: [Orders]
+      summary: Cancel an owned order before the cutoff
+      responses:
+        '200':
+          description: Cancelled order
+          headers:
+            X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OrderResponse'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/orders/fromEmail:
+    post:
+      tags: [Administration]
+      summary: Convert a parsed email order
+      description: Internal administrative HTTP adapter; requires ADMIN.
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/EmailOrderRequest'}
+      responses:
+        '201':
+          description: Email order created
+          headers:
+            X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OrderResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '422': {$ref: '#/components/responses/Unprocessable'}
+  /api/v1/orders/{orderId}:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+      - $ref: '#/components/parameters/CorrelationId'
+    put:
+      tags: [Orders]
+      summary: Replace order delivery fields
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/OrderDeliveryRequest'}
+      responses:
+        '200':
+          description: Delivery fields updated
+          headers:
+            X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OrderResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    patch:
+      tags: [Orders]
+      summary: Patch allowed order delivery fields
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/OrderDeliveryPatchRequest'}
+      responses:
+        '200':
+          description: Delivery fields patched
+          headers:
+            X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OrderResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    delete:
+      tags: [Orders]
+      summary: Legacy cancellation semantics using DELETE
+      responses:
+        '204': {$ref: '#/components/responses/NoContent'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/kitchen/queue:
+    get:
+      tags: [Kitchen]
+      summary: List the FIFO kitchen queue
+      description: Requires KITCHEN.
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Orders waiting for claim
+          headers:
+            X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/KitchenOrderResponse'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/kitchen/orders/claim:
+    post:
+      tags: [Kitchen]
+      summary: Atomically claim the next kitchen order
+      description: Requires KITCHEN. An empty queue returns 204.
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Claimed order
+          headers:
+            X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/KitchenOrderResponse'}
+        '204': {$ref: '#/components/responses/NoContent'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/admin/announcements:
+    get:
+      tags: [Administration]
+      summary: List active operational announcements
+      description: Requires ADMIN; expired announcements are excluded.
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Active announcements without author data
+          headers:
+            X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/AnnouncementResponse'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+    post:
+      tags: [Administration]
+      summary: Create an operational announcement
+      description: Requires ADMIN; author and creation time are server-owned.
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AnnouncementRequest'}
+      responses:
+        '201':
+          description: Announcement created
+          headers:
+            X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AnnouncementResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/admin/announcements/{announcementId}:
+    parameters:
+      - name: announcementId
+        in: path
+        required: true
+        schema: {type: string}
+      - $ref: '#/components/parameters/CorrelationId'
+    delete:
+      tags: [Administration]
+      summary: Delete an announcement by stable id
+      description: Requires ADMIN.
+      responses:
+        '204': {$ref: '#/components/responses/NoContent'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+      description: HTTP Basic credentials resolved by Spring Security. Browser form login may establish the same authenticated session.
+  headers:
+    CorrelationId:
+      description: Validated request correlation or server-generated UUID.
+      schema:
+        type: string
+        maxLength: 64
+        pattern: '^[A-Za-z0-9._-]+$'
+      example: client-operation-123
+  parameters:
+    CorrelationId:
+      name: X-Correlation-Id
+      in: header
+      required: false
+      description: Preserved when valid; otherwise the server generates a UUID and returns it in the response.
+      schema:
+        type: string
+        maxLength: 64
+        pattern: '^[A-Za-z0-9._-]+$'
+      example: client-operation-123
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Stable per-user key. Same key and request replays the result; a different request produces 409.
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 128
+        pattern: '^[A-Za-z0-9._-]+$'
+      example: order-client-0001
+    IngredientId:
+      name: id
+      in: path
+      required: true
+      schema: {type: string, minLength: 2, maxLength: 20}
+    TacoId:
+      name: id
+      in: path
+      required: true
+      schema: {type: string}
+    OrderId:
+      name: orderId
+      in: path
+      required: true
+      schema: {type: string}
+    Page:
+      name: page
+      in: query
+      schema: {type: integer, minimum: 0, default: 0}
+    Size:
+      name: size
+      in: query
+      schema: {type: integer, minimum: 1, maximum: 50, default: 20}
+  responses:
+    NoContent:
+      description: Operation completed without a response body
+      headers:
+        X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+    BadRequest:
+      description: Invalid request or malformed JSON
+      headers:
+        X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/ApiProblem'}
+          example:
+            type: urn:tacocloud:problem:validation_error
+            title: Invalid request
+            status: 400
+            detail: The request contains invalid fields.
+            instance: /api/v1/orders
+            code: VALIDATION_ERROR
+            violations:
+              - field: deliveryName
+                reason: deliveryName is required
+    Unauthorized:
+      description: Authentication is required
+      headers:
+        X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/ApiProblem'}
+    Forbidden:
+      description: Authenticated principal lacks the required role or ownership
+      headers:
+        X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/ApiProblem'}
+    NotFound:
+      description: Resource not found or hidden by ownership rules
+      headers:
+        X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/ApiProblem'}
+    Conflict:
+      description: State, version, workflow, or idempotency conflict
+      headers:
+        X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/ApiProblem'}
+    Unprocessable:
+      description: Request is syntactically valid but violates a business rule
+      headers:
+        X-Correlation-Id: {$ref: '#/components/headers/CorrelationId'}
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/ApiProblem'}
+  schemas:
+    IngredientType:
+      type: string
+      enum: [WRAP, PROTEIN, VEGGIES, CHEESE, SAUCE]
+    DietaryTag:
+      type: string
+      enum: [VEGAN, VEGETARIAN, GLUTEN_FREE]
+    Allergen:
+      type: string
+      enum: [GLUTEN, DAIRY, EGG, PEANUT, TREE_NUT, SOY]
+    SpiceLevel:
+      type: string
+      enum: [NONE, MILD, MEDIUM, HOT, EXTREME]
+    OrderStatus:
+      type: string
+      enum: [CREATED, ACCEPTED, PREPARING, READY, OUT_FOR_DELIVERY, DELIVERED, CANCELLED]
+    ChangeOrigin:
+      type: string
+      enum: [USER_API, KITCHEN_API, ADMIN_API, SYSTEM]
+    IngredientRequest:
+      type: object
+      additionalProperties: false
+      required: [id, name, type, dietaryTags, allergens, spiceLevel]
+      properties:
+        id: {type: string, pattern: '^[A-Z0-9_-]{2,20}$', example: FLTO}
+        name: {type: string, minLength: 1, maxLength: 50, example: Flour Tortilla}
+        type: {$ref: '#/components/schemas/IngredientType'}
+        dietaryTags:
+          type: array
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/DietaryTag'}
+        allergens:
+          type: array
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/Allergen'}
+        spiceLevel: {$ref: '#/components/schemas/SpiceLevel'}
+    IngredientResponse:
+      type: object
+      additionalProperties: false
+      required: [id, name, type, unitPrice, available, dietaryTags, allergens, spiceLevel]
+      properties:
+        id: {type: string}
+        name: {type: string}
+        type: {$ref: '#/components/schemas/IngredientType'}
+        unitPrice: {type: number, format: decimal, minimum: 0, multipleOf: 0.01}
+        available: {type: boolean}
+        dietaryTags:
+          type: array
+          items: {$ref: '#/components/schemas/DietaryTag'}
+        allergens:
+          type: array
+          items: {$ref: '#/components/schemas/Allergen'}
+        spiceLevel: {$ref: '#/components/schemas/SpiceLevel'}
+    IngredientCatalogUpdateRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties:
+        unitPrice: {type: number, format: decimal, minimum: 0, multipleOf: 0.01}
+        available: {type: boolean}
+        reorderLevel: {type: integer, minimum: 0}
+        expectedVersion: {type: integer, format: int64, minimum: 0}
+    StockAdjustmentRequest:
+      type: object
+      additionalProperties: false
+      required: [quantity, expectedVersion]
+      properties:
+        quantity: {type: integer, format: int32}
+        expectedVersion: {type: integer, format: int64, minimum: 0}
+    IngredientAdminResponse:
+      allOf:
+        - $ref: '#/components/schemas/IngredientResponse'
+        - type: object
+          required: [stockOnHand, reorderLevel, version]
+          properties:
+            stockOnHand: {type: integer, minimum: 0}
+            reorderLevel: {type: integer, minimum: 0}
+            version: {type: integer, format: int64, minimum: 0}
+    IngredientReference:
+      type: object
+      additionalProperties: false
+      required: [id]
+      properties:
+        id: {type: string, example: FLTO}
+    TacoCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [name, ingredients]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 50, example: Veggie Taco}
+        ingredients:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items: {$ref: '#/components/schemas/IngredientReference'}
+    TacoDesignRequest:
+      type: object
+      additionalProperties: false
+      required: [name, ingredientIds]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 50}
+        ingredientIds:
+          type: array
+          maxItems: 50
+          items: {type: string, minLength: 1}
+    TacoDesignViolationResponse:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code: {type: string}
+        message: {type: string}
+    TacoDesignValidationResponse:
+      type: object
+      additionalProperties: false
+      required: [valid, violations]
+      properties:
+        valid: {type: boolean}
+        violations:
+          type: array
+          items: {$ref: '#/components/schemas/TacoDesignViolationResponse'}
+    TacoClassificationResponse:
+      type: object
+      additionalProperties: false
+      required: [tacoId, tacoName, dietaryTags, allergens, spiceLevel, disclaimer]
+      properties:
+        tacoId: {type: string, nullable: true}
+        tacoName: {type: string}
+        dietaryTags:
+          type: array
+          items: {$ref: '#/components/schemas/DietaryTag'}
+        allergens:
+          type: array
+          items: {$ref: '#/components/schemas/Allergen'}
+        spiceLevel: {$ref: '#/components/schemas/SpiceLevel'}
+        disclaimer: {type: string}
+    TacoCatalogResponse:
+      type: object
+      additionalProperties: false
+      required: [id, name, createdAt, ingredients, classification]
+      properties:
+        id: {type: string, nullable: true}
+        name: {type: string}
+        createdAt: {type: string, format: date-time, nullable: true}
+        ingredients:
+          type: array
+          items: {$ref: '#/components/schemas/IngredientResponse'}
+        classification: {$ref: '#/components/schemas/TacoClassificationResponse'}
+    TacoSearchResponse:
+      type: object
+      additionalProperties: false
+      required: [items, page, size, totalElements, totalPages]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/TacoCatalogResponse'}
+        page: {type: integer, minimum: 0}
+        size: {type: integer, minimum: 1}
+        totalElements: {type: integer, format: int64, minimum: 0}
+        totalPages: {type: integer, minimum: 0}
+    DailyTacoResponse:
+      type: object
+      additionalProperties: false
+      required: [taco, date, reason]
+      properties:
+        taco: {$ref: '#/components/schemas/TacoCatalogResponse'}
+        date: {type: string, format: date}
+        reason: {type: string}
+    RatingRequest:
+      type: object
+      additionalProperties: false
+      required: [score]
+      properties:
+        score: {type: integer, minimum: 1, maximum: 5}
+    RatingDistribution:
+      type: object
+      additionalProperties:
+        type: integer
+        format: int64
+        minimum: 0
+      example: {'1': 0, '2': 0, '3': 1, '4': 2, '5': 4}
+    TopTacoRatingResponse:
+      type: object
+      additionalProperties: false
+      required: [taco, average, count, distribution]
+      properties:
+        taco: {$ref: '#/components/schemas/TacoCatalogResponse'}
+        average: {type: number, format: decimal, minimum: 1, maximum: 5}
+        count: {type: integer, format: int64, minimum: 0}
+        distribution: {$ref: '#/components/schemas/RatingDistribution'}
+    FavoritePageResponse:
+      type: object
+      additionalProperties: false
+      required: [items, page, size, totalElements, totalPages]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/TacoCatalogResponse'}
+        page: {type: integer, minimum: 0}
+        size: {type: integer, minimum: 1}
+        totalElements: {type: integer, format: int64, minimum: 0}
+        totalPages: {type: integer, minimum: 0}
+    OrderTacoRequest:
+      type: object
+      additionalProperties: false
+      required: [name, ingredientIds]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 50}
+        ingredientIds:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items: {type: string, minLength: 1}
+    OrderItemRequest:
+      type: object
+      additionalProperties: false
+      required: [taco, quantity]
+      properties:
+        taco: {$ref: '#/components/schemas/OrderTacoRequest'}
+        quantity: {type: integer, minimum: 1, maximum: 10}
+    OrderCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [deliveryName, deliveryStreet, deliveryCity, deliveryState, deliveryZip, paymentMethodId, items]
+      properties:
+        deliveryName: {type: string, minLength: 1, maxLength: 50}
+        deliveryStreet: {type: string, minLength: 1, maxLength: 100}
+        deliveryCity: {type: string, minLength: 1, maxLength: 50}
+        deliveryState: {type: string, minLength: 2, maxLength: 50}
+        deliveryZip: {type: string, pattern: '^[A-Za-z0-9 -]{3,10}$'}
+        paymentMethodId: {type: string, minLength: 1}
+        couponCode: {type: string, maxLength: 50, nullable: true}
+        items:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items: {$ref: '#/components/schemas/OrderItemRequest'}
+    OrderQuoteRequest:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items: {$ref: '#/components/schemas/OrderItemRequest'}
+        couponCode: {type: string, maxLength: 50, nullable: true}
+    OrderTacoResponse:
+      type: object
+      additionalProperties: false
+      required: [name, ingredients]
+      properties:
+        name: {type: string}
+        ingredients:
+          type: array
+          items: {$ref: '#/components/schemas/IngredientResponse'}
+    OrderItemResponse:
+      type: object
+      additionalProperties: false
+      required: [taco, quantity, unitPriceAtPurchase, subtotal]
+      properties:
+        taco: {$ref: '#/components/schemas/OrderTacoResponse'}
+        quantity: {type: integer, minimum: 1}
+        unitPriceAtPurchase: {type: number, format: decimal, multipleOf: 0.01}
+        subtotal: {type: number, format: decimal, multipleOf: 0.01}
+    OrderStatusHistoryResponse:
+      type: object
+      additionalProperties: false
+      required: [toStatus, changedAt, changedBy, origin]
+      properties:
+        fromStatus: {$ref: '#/components/schemas/OrderStatus'}
+        toStatus: {$ref: '#/components/schemas/OrderStatus'}
+        changedAt: {type: string, format: date-time}
+        changedBy: {type: string}
+        origin: {$ref: '#/components/schemas/ChangeOrigin'}
+        reason: {type: string, nullable: true}
+    OrderResponse:
+      type: object
+      additionalProperties: false
+      required: [id, version, deliveryName, deliveryStreet, deliveryCity, deliveryState, deliveryZip, placedAt, status, statusHistory, tacos, items, subtotal, discountAmount, total, currency]
+      properties:
+        id: {type: string}
+        version: {type: integer, format: int64, minimum: 0}
+        deliveryName: {type: string}
+        deliveryStreet: {type: string}
+        deliveryCity: {type: string}
+        deliveryState: {type: string}
+        deliveryZip: {type: string}
+        placedAt: {type: string, format: date-time}
+        status: {$ref: '#/components/schemas/OrderStatus'}
+        statusHistory:
+          type: array
+          items: {$ref: '#/components/schemas/OrderStatusHistoryResponse'}
+        tacos:
+          type: array
+          items: {$ref: '#/components/schemas/OrderTacoResponse'}
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/OrderItemResponse'}
+        subtotal: {type: number, format: decimal, multipleOf: 0.01}
+        appliedCouponCode: {type: string, nullable: true}
+        discountAmount: {type: number, format: decimal, multipleOf: 0.01}
+        total: {type: number, format: decimal, multipleOf: 0.01}
+        currency: {type: string, enum: [MXN]}
+    OrderQuoteResponse:
+      type: object
+      additionalProperties: false
+      required: [valid, subtotal, discount, total, currency, classifications]
+      properties:
+        valid: {type: boolean}
+        subtotal: {type: number, format: decimal}
+        discount: {type: number, format: decimal}
+        total: {type: number, format: decimal}
+        currency: {type: string, enum: [MXN]}
+        classifications:
+          type: array
+          items: {$ref: '#/components/schemas/TacoClassificationResponse'}
+    OrderDeliveryRequest:
+      type: object
+      additionalProperties: false
+      required: [deliveryName, deliveryStreet, deliveryCity, deliveryState, deliveryZip]
+      properties:
+        deliveryName: {type: string, maxLength: 50}
+        deliveryStreet: {type: string, maxLength: 100}
+        deliveryCity: {type: string, maxLength: 50}
+        deliveryState: {type: string, minLength: 2, maxLength: 50}
+        deliveryZip: {type: string, pattern: '^[A-Za-z0-9 -]{3,10}$'}
+    OrderDeliveryPatchRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        deliveryName: {type: string, maxLength: 50}
+        deliveryStreet: {type: string, maxLength: 100}
+        deliveryCity: {type: string, maxLength: 50}
+        deliveryState: {type: string, minLength: 2, maxLength: 50}
+        deliveryZip: {type: string, pattern: '^[A-Za-z0-9 -]{3,10}$'}
+    ReorderRequest:
+      type: object
+      additionalProperties: false
+      required: [paymentMethodId, confirmPriceChange]
+      properties:
+        paymentMethodId: {type: string, minLength: 1}
+        confirmPriceChange: {type: boolean, default: false}
+    ReorderResponse:
+      type: object
+      additionalProperties: false
+      required: [status, requiresConfirmation, originalTotal, currentTotal, difference, differences]
+      properties:
+        status: {type: string, enum: [REORDER_QUOTE, REORDERED]}
+        requiresConfirmation: {type: boolean}
+        originalTotal: {type: number, format: decimal}
+        currentTotal: {type: number, format: decimal}
+        difference: {type: number, format: decimal}
+        differences:
+          type: array
+          items: {type: string}
+        order:
+          allOf:
+            - $ref: '#/components/schemas/OrderResponse'
+          nullable: true
+    OrderStatusChangeRequest:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: {$ref: '#/components/schemas/OrderStatus'}
+        reason: {type: string, maxLength: 200, nullable: true}
+    OrderStatusResponse:
+      type: object
+      additionalProperties: false
+      required: [orderId, version, status, statusHistory]
+      properties:
+        orderId: {type: string}
+        version: {type: integer, format: int64, minimum: 0}
+        status: {$ref: '#/components/schemas/OrderStatus'}
+        stationId: {type: string, nullable: true}
+        cookId: {type: string, nullable: true}
+        statusHistory:
+          type: array
+          items: {$ref: '#/components/schemas/OrderStatusHistoryResponse'}
+    OrderSummaryResponse:
+      type: object
+      additionalProperties: false
+      required: [id, placedAt, status, itemCount, total, currency]
+      properties:
+        id: {type: string}
+        placedAt: {type: string, format: date-time}
+        status: {$ref: '#/components/schemas/OrderStatus'}
+        itemCount: {type: integer, minimum: 0}
+        total: {type: number, format: decimal}
+        currency: {type: string, enum: [MXN]}
+    OrderHistoryPageResponse:
+      type: object
+      additionalProperties: false
+      required: [items, page, size, totalElements, totalPages]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/OrderSummaryResponse'}
+        page: {type: integer, minimum: 0}
+        size: {type: integer, minimum: 1}
+        totalElements: {type: integer, format: int64, minimum: 0}
+        totalPages: {type: integer, minimum: 0}
+    EmailTacoRequest:
+      type: object
+      additionalProperties: false
+      required: [name, ingredients]
+      properties:
+        name: {type: string}
+        ingredients:
+          type: array
+          items: {type: string}
+    EmailOrderRequest:
+      type: object
+      additionalProperties: false
+      required: [email, tacos]
+      properties:
+        email: {type: string, format: email}
+        tacos:
+          type: array
+          items: {$ref: '#/components/schemas/EmailTacoRequest'}
+    KitchenOrderItemResponse:
+      type: object
+      additionalProperties: false
+      required: [tacoName, ingredientIds, quantity]
+      properties:
+        tacoName: {type: string}
+        ingredientIds:
+          type: array
+          items: {type: string}
+        quantity: {type: integer, minimum: 1}
+    KitchenOrderResponse:
+      type: object
+      additionalProperties: false
+      required: [orderId, placedAt, status, items, estimatedPrepMinutes]
+      properties:
+        orderId: {type: string}
+        placedAt: {type: string, format: date-time}
+        status: {$ref: '#/components/schemas/OrderStatus'}
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/KitchenOrderItemResponse'}
+        stationId: {type: string, nullable: true}
+        cookId: {type: string, nullable: true}
+        estimatedPrepMinutes: {type: integer, minimum: 0}
+    AnnouncementSeverity:
+      type: string
+      enum: [INFO, WARNING, CRITICAL]
+    AnnouncementRequest:
+      type: object
+      additionalProperties: false
+      required: [text, severity, expiresAt]
+      properties:
+        text: {type: string, minLength: 1, maxLength: 500}
+        severity: {$ref: '#/components/schemas/AnnouncementSeverity'}
+        expiresAt: {type: string, format: date-time}
+    AnnouncementResponse:
+      type: object
+      additionalProperties: false
+      required: [id, text, severity, createdAt, expiresAt, active]
+      properties:
+        id: {type: string}
+        text: {type: string}
+        severity: {$ref: '#/components/schemas/AnnouncementSeverity'}
+        createdAt: {type: string, format: date-time}
+        expiresAt: {type: string, format: date-time}
+        active: {type: boolean}
+    ApiProblem:
+      type: object
+      additionalProperties: false
+      required: [type, title, status, detail, instance, code, violations]
+      properties:
+        type: {type: string, format: uri}
+        title: {type: string}
+        status: {type: integer, minimum: 400, maximum: 599}
+        detail: {type: string}
+        instance: {type: string}
+        code: {type: string}
+        violations:
+          type: array
+          items: {$ref: '#/components/schemas/Violation'}
+    Violation:
+      type: object
+      additionalProperties: false
+      required: [field, reason]
+      properties:
+        field: {type: string}
+        reason: {type: string}

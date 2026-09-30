@@ -13,7 +13,9 @@ import reactor.core.publisher.Mono;
 import tacos.web.api.dto.ApiDtos.KitchenOrderResponse;
 
 @RestController
-@RequestMapping(path="/api/kitchen",produces="application/json")
+@RequestMapping(
+    path={"/api/kitchen","/api/v1/kitchen"},
+    produces="application/json")
 public class KitchenApiController {
 
   private final KitchenQueueService kitchenQueue;

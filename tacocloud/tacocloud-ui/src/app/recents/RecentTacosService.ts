@@ -13,7 +13,7 @@ export class RecentTacosService {
         .filter(key => params[key] !== null && params[key] !== undefined && params[key] !== '')
         .map(key => encodeURIComponent(key) + '=' + encodeURIComponent(params[key]))
         .join('&');
-    const path = '/api/tacos' + (query ? '?' + query : '');
+    const path = '/api/v1/tacos' + (query ? '?' + query : '');
     return this.apiService.get(path).map(response => response.json());
   }
 
@@ -23,41 +23,41 @@ export class RecentTacosService {
 
   getFavorites(page: number = 0, size: number = 50) {
     return this.apiService
-        .get('/api/users/me/favorites?page=' + page + '&size=' + size)
+        .get('/api/v1/users/me/favorites?page=' + page + '&size=' + size)
         .map(response => response.json());
   }
 
   addFavorite(tacoId: string) {
     return this.apiService.put(
-        '/api/users/me/favorites/' + encodeURIComponent(tacoId), {});
+        '/api/v1/users/me/favorites/' + encodeURIComponent(tacoId), {});
   }
 
   removeFavorite(tacoId: string) {
     return this.apiService.delete(
-        '/api/users/me/favorites/' + encodeURIComponent(tacoId));
+        '/api/v1/users/me/favorites/' + encodeURIComponent(tacoId));
   }
 
   rateTaco(tacoId: string, score: number) {
     return this.apiService.put(
-        '/api/tacos/' + encodeURIComponent(tacoId) + '/rating',
+        '/api/v1/tacos/' + encodeURIComponent(tacoId) + '/rating',
         {score: score});
   }
 
   getTopTacos(limit: number = 10) {
     return this.apiService
-        .get('/api/tacos/top?limit=' + limit)
+        .get('/api/v1/tacos/top?limit=' + limit)
         .map(response => response.json());
   }
 
   getMyOrders(page: number = 0, size: number = 10) {
     return this.apiService
-        .get('/api/users/me/orders?page=' + page + '&size=' + size)
+        .get('/api/v1/users/me/orders?page=' + page + '&size=' + size)
         .map(response => response.json());
   }
 
   getMyOrder(orderId: string) {
     return this.apiService
-        .get('/api/users/me/orders/' + encodeURIComponent(orderId))
+        .get('/api/v1/users/me/orders/' + encodeURIComponent(orderId))
         .map(response => response.json());
   }
 

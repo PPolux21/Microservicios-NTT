@@ -182,6 +182,27 @@ public class SecurityConfigTest {
   }
 
   @Test
+  public void shouldApplyTheSameRoleMatrixToV1()
+      throws Exception {
+    mvc.perform(get("/api/v1/tacos"))
+        .andExpect(status().isOk());
+    mvc.perform(post("/api/v1/orders").with(csrf()))
+        .andExpect(status().isUnauthorized());
+    mvc.perform(post("/api/v1/orders").with(csrf())
+            .with(user("jose").roles("USER")))
+        .andExpect(status().isOk());
+    mvc.perform(get("/api/v1/kitchen/queue")
+            .with(user("jose").roles("USER")))
+        .andExpect(status().isForbidden());
+    mvc.perform(get("/api/v1/kitchen/queue")
+            .with(user("cook").roles("KITCHEN")))
+        .andExpect(status().isOk());
+    mvc.perform(get("/api/v1/admin/announcements")
+            .with(user("admin").roles("ADMIN")))
+        .andExpect(status().isOk());
+  }
+
+  @Test
   public void shouldRequireAuthenticationForFavorites()
       throws Exception {
 
@@ -389,13 +410,13 @@ public class SecurityConfigTest {
   @RestController
   static class TestController {
 
-    @GetMapping("/api/tacos")
+    @GetMapping({"/api/tacos","/api/v1/tacos"})
     public String tacos() {
       return "ok";
     }
 
 
-    @PostMapping("/api/orders")
+    @PostMapping({"/api/orders","/api/v1/orders"})
     public String createOrder() {
       return "ok";
     }
@@ -407,7 +428,7 @@ public class SecurityConfigTest {
     }
 
 
-    @GetMapping("/api/kitchen/queue")
+    @GetMapping({"/api/kitchen/queue","/api/v1/kitchen/queue"})
     public String kitchenQueue() {
       return "ok";
     }
@@ -482,7 +503,7 @@ public class SecurityConfigTest {
       return "ok";
     }
 
-    @GetMapping("/api/admin/announcements")
+    @GetMapping({"/api/admin/announcements","/api/v1/admin/announcements"})
     public String announcements() {
       return "ok";
     }

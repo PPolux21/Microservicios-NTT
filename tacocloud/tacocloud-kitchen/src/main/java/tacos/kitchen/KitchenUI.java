@@ -46,7 +46,7 @@ public class KitchenUI {
 
   public List<KitchenOrderView> loadQueue() {
     KitchenOrderView[] queue = api.getForObject(
-        apiBaseUrl + "/api/kitchen/queue",KitchenOrderView[].class);
+        apiBaseUrl + "/api/v1/kitchen/queue",KitchenOrderView[].class);
     if (queue == null) {
       return Collections.emptyList();
     }
@@ -57,7 +57,7 @@ public class KitchenUI {
 
   public KitchenOrderView claimNext() {
     return api.postForObject(
-        apiBaseUrl + "/api/kitchen/orders/claim",null,
+        apiBaseUrl + "/api/v1/kitchen/orders/claim",null,
         KitchenOrderView.class);
   }
 
@@ -65,7 +65,7 @@ public class KitchenUI {
     HttpEntity<Map<String,String>> request = new HttpEntity<>(
         Collections.singletonMap("status",status));
     return api.exchange(
-        apiBaseUrl + "/api/orders/" + orderId + "/status",
+        apiBaseUrl + "/api/v1/orders/" + orderId + "/status",
         HttpMethod.PATCH,request,KitchenOrderView.class).getBody();
   }
 

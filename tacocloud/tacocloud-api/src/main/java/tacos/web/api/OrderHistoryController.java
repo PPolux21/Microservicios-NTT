@@ -31,7 +31,9 @@ public class OrderHistoryController {
     this.maxPageSize = maxPageSize;
   }
 
-  @GetMapping(path="/api/users/me/orders",produces="application/json")
+  @GetMapping(
+      path={"/api/users/me/orders","/api/v1/users/me/orders"},
+      produces="application/json")
   public Mono<OrderHistoryPageResponse> ownOrders(
       @Valid OrderHistoryQuery query,Authentication authentication) {
     validatePageSize(query.getSize());
@@ -40,14 +42,19 @@ public class OrderHistoryController {
         .map(ApiMapper::toResponse);
   }
 
-  @GetMapping(path="/api/users/me/orders/{orderId}",produces="application/json")
+  @GetMapping(
+      path={"/api/users/me/orders/{orderId}",
+          "/api/v1/users/me/orders/{orderId}"},
+      produces="application/json")
   public Mono<OrderResponse> ownOrder(@PathVariable String orderId,
       Authentication authentication) {
     return orderService.findOwnOrder(orderId,authentication)
         .map(ApiMapper::toResponse);
   }
 
-  @GetMapping(path="/api/admin/orders",produces="application/json")
+  @GetMapping(
+      path={"/api/admin/orders","/api/v1/admin/orders"},
+      produces="application/json")
   public Mono<OrderHistoryPageResponse> adminOrders(
       @Valid AdminOrderHistoryQuery query) {
     validatePageSize(query.getSize());

@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -27,6 +28,7 @@ public class KitchenUI {
   private final RestTemplate api;
   private final String apiBaseUrl;
 
+  @Autowired
   public KitchenUI(RestTemplateBuilder builder,
       @Value("${tacocloud.kitchen.api-base-url}") String apiBaseUrl,
       @Value("${tacocloud.kitchen.username}") String username,

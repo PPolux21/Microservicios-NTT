@@ -27,7 +27,9 @@ import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.mongo.embedded.EmbeddedMongoAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.repository.config.EnableReactiveMongoRepositories;
@@ -46,6 +48,7 @@ import tacos.TacoOrder;
 import tacos.TacoOrder.Status;
 import tacos.User;
 import tacos.data.OrderRepository;
+import tacos.data.consumer.ProcessedEventRepository;
 import tacos.data.outbox.OutboxEvent;
 import tacos.data.outbox.OutboxEventRepository;
 import tacos.data.outbox.OutboxStatus;
@@ -314,7 +317,11 @@ public class OutboxMongoIntegrationTest {
 
   @SpringBootConfiguration
   @EnableAutoConfiguration(exclude=EmbeddedMongoAutoConfiguration.class)
-  @EnableReactiveMongoRepositories(basePackageClasses=OrderRepository.class)
+  @EnableReactiveMongoRepositories(
+      basePackageClasses=OrderRepository.class,
+      excludeFilters=@ComponentScan.Filter(
+          type=FilterType.ASSIGNABLE_TYPE,
+          classes=ProcessedEventRepository.class))
   @Import({MongoTransactionConfiguration.class,OrderOutboxService.class})
   static class TestApplication {
 

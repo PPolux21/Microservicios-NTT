@@ -7,14 +7,25 @@ tacocloud:
       destination: ${TACOCLOUD_JMS_DESTINATION:tacocloud.order.queue}
     rabbit:
       destination: ${TACOCLOUD_RABBIT_DESTINATION:tacocloud.order.queue}
+      dead-letter-exchange: ${TACOCLOUD_RABBIT_DLX:tacocloud.order.dlx}
+      dead-letter-routing-key: ${TACOCLOUD_RABBIT_DLQ_ROUTING_KEY:tacocloud.order.dead}
+      dead-letter-queue: ${TACOCLOUD_RABBIT_DLQ:tacocloud.order.queue.dlq}
     kafka:
       topic: ${TACOCLOUD_KAFKA_TOPIC:tacocloud.orders.topic}
   kitchen:
     api-base-url: ${TACOCLOUD_API_URL:http://localhost:8080}
     username: ${TACOCLOUD_KITCHEN_USERNAME:kitchen}
     password: ${TACOCLOUD_KITCHEN_PASSWORD:}
+    consumer:
+      max-attempts: ${TACOCLOUD_CONSUMER_MAX_ATTEMPTS:3}
+      backoff: ${TACOCLOUD_CONSUMER_BACKOFF:1s}
+      concurrency: ${TACOCLOUD_CONSUMER_CONCURRENCY:1}
 
 spring:
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017/tacocloud?replicaSet=rs0}
+      auto-index-creation: true
   artemis:
     host: ${ARTEMIS_HOST:localhost}
     port: ${ARTEMIS_PORT:61616}

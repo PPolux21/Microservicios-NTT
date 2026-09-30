@@ -26,6 +26,10 @@ public class RabbitOrderMessagingService
               throws AmqpException {
             MessageProperties props = message.getMessageProperties();
             props.setHeader("X_ORDER_SOURCE", "WEB");
+            props.setHeader("x-tacocloud-event-id",
+                event.getEventId().toString());
+            props.setHeader("x-tacocloud-correlation-id",
+                event.getCorrelationId());
             return message;
           } 
         });

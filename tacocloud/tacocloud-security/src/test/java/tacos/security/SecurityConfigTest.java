@@ -337,6 +337,55 @@ public class SecurityConfigTest {
             status().isOk());
   }
 
+  @Test
+  public void shouldAllowOnlyAdminToManageAnnouncements()
+      throws Exception {
+    mvc.perform(get("/api/admin/announcements"))
+        .andExpect(status().isUnauthorized());
+
+    mvc.perform(get("/api/admin/announcements")
+            .with(user("jose").roles("USER")))
+        .andExpect(status().isForbidden());
+
+    mvc.perform(get("/api/admin/announcements")
+            .with(user("cook").roles("KITCHEN")))
+        .andExpect(status().isForbidden());
+
+    mvc.perform(get("/api/admin/announcements")
+            .with(user("admin").roles("ADMIN")))
+        .andExpect(status().isOk());
+
+    mvc.perform(post("/api/admin/announcements").with(csrf()))
+        .andExpect(status().isUnauthorized());
+
+    mvc.perform(post("/api/admin/announcements").with(csrf())
+            .with(user("jose").roles("USER")))
+        .andExpect(status().isForbidden());
+
+    mvc.perform(post("/api/admin/announcements").with(csrf())
+            .with(user("cook").roles("KITCHEN")))
+        .andExpect(status().isForbidden());
+
+    mvc.perform(post("/api/admin/announcements").with(csrf())
+            .with(user("admin").roles("ADMIN")))
+        .andExpect(status().isOk());
+
+    mvc.perform(delete("/api/admin/announcements/A-1").with(csrf())
+            .with(user("jose").roles("USER")))
+        .andExpect(status().isForbidden());
+
+    mvc.perform(delete("/api/admin/announcements/A-1").with(csrf()))
+        .andExpect(status().isUnauthorized());
+
+    mvc.perform(delete("/api/admin/announcements/A-1").with(csrf())
+            .with(user("cook").roles("KITCHEN")))
+        .andExpect(status().isForbidden());
+
+    mvc.perform(delete("/api/admin/announcements/A-1").with(csrf())
+            .with(user("admin").roles("ADMIN")))
+        .andExpect(status().isOk());
+  }
+
   @RestController
   static class TestController {
 
@@ -430,6 +479,21 @@ public class SecurityConfigTest {
 
     @GetMapping("/api/admin/orders")
     public String adminOrders() {
+      return "ok";
+    }
+
+    @GetMapping("/api/admin/announcements")
+    public String announcements() {
+      return "ok";
+    }
+
+    @PostMapping("/api/admin/announcements")
+    public String createAnnouncement() {
+      return "ok";
+    }
+
+    @DeleteMapping("/api/admin/announcements/{announcementId}")
+    public String deleteAnnouncement() {
       return "ok";
     }
 

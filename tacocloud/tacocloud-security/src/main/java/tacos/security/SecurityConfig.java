@@ -103,6 +103,10 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
         .hasRole("ADMIN")
 
         .antMatchers(
+            "/api/admin/announcements/**")
+        .hasRole("ADMIN")
+
+        .antMatchers(
             "/api/ingredients/**")
         .hasRole("ADMIN")
         

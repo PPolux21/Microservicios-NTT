@@ -127,7 +127,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,notes
+        include: health,info,metrics
 #end::exposeAll[]
         exclude: threaddump,heapdump
 #end::excludeSome[]

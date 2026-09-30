@@ -14,6 +14,7 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.test.web.servlet.client.MockMvcWebTestClient;
 
 import tacos.data.OrderRepository;
 import tacos.web.api.error.ApiExceptionHandler;
@@ -54,7 +55,7 @@ public class ApiExceptionHandlerTest {
 
 
     WebTestClient client =
-        WebTestClient
+        MockMvcWebTestClient
             .bindToController(controller)
             .controllerAdvice(
                 new ApiExceptionHandler())
@@ -164,7 +165,7 @@ public class ApiExceptionHandlerTest {
   public void shouldMapFunctionalExceptionsToCorrectStatus() {
 
     WebTestClient client =
-        WebTestClient
+        MockMvcWebTestClient
             .bindToController(
                 new TestErrorController())
             .controllerAdvice(
@@ -228,7 +229,7 @@ public class ApiExceptionHandlerTest {
   public void shouldHideInternalExceptionDetails() {
 
     WebTestClient client =
-        WebTestClient
+        MockMvcWebTestClient
             .bindToController(
                 new TestErrorController())
             .controllerAdvice(

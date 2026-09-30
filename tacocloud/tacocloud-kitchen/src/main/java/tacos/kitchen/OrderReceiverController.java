@@ -1,5 +1,6 @@
 package tacos.kitchen;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -9,7 +10,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import lombok.RequiredArgsConstructor;
 import tacos.messaging.OrderEvent;
 
-@Profile({"jms-template", "rabbitmq-template"})
+@Profile("template")
+@ConditionalOnExpression("'${tacocloud.messaging.transport:noop}' == 'jms' "
+    + "|| '${tacocloud.messaging.transport:noop}' == 'rabbit'")
 @Controller
 @RequestMapping("/orders")
 @RequiredArgsConstructor

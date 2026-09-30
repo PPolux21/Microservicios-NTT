@@ -60,6 +60,26 @@ http://maven.apache.org/xsd/maven-4.0.0.xsd">
       <artifactId>tacocloud-jmx</artifactId>
       <version>${tacocloud.version}</version>
     </dependency>
+    <dependency>
+      <groupId>sia</groupId>
+      <artifactId>tacocloud-messaging-noop</artifactId>
+      <version>${tacocloud.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>sia</groupId>
+      <artifactId>tacocloud-messaging-jms</artifactId>
+      <version>${tacocloud.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>sia</groupId>
+      <artifactId>tacocloud-messaging-rabbitmq</artifactId>
+      <version>${tacocloud.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>sia</groupId>
+      <artifactId>tacocloud-messaging-kafka</artifactId>
+      <version>${tacocloud.version}</version>
+    </dependency>
 
     <!-- Run against embedded H2 database by default -->
     <dependency>

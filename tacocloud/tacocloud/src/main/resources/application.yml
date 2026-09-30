@@ -20,6 +20,18 @@ spring:
 # end::springBootAdminCreds[]
   application:
     name: taco-cloud
+  artemis:
+    host: ${ARTEMIS_HOST:localhost}
+    port: ${ARTEMIS_PORT:61616}
+    user: ${ARTEMIS_USERNAME:guest}
+    password: ${ARTEMIS_PASSWORD:guest}
+    embedded:
+      enabled: false
+  rabbitmq:
+    host: ${RABBIT_HOST:localhost}
+    port: ${RABBIT_PORT:5672}
+    username: ${RABBIT_USERNAME:guest}
+    password: ${RABBIT_PASSWORD:guest}
   data:
     rest:
       base-path: /data-api
@@ -37,13 +49,8 @@ spring:
         password: 53cr3t
 # end::springBootAdminCreds[]
 
-# The values given here are actually the default values. But they are explicitly
-# set here as an example of setting the Kafka properties.
   kafka:
-    bootstrap-servers:
-    - localhost:9092
-    template:
-      default-topic: tacocloud.orders.topic
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     producer:
       keySerializer: org.springframework.kafka.support.serializer.JsonSerializer
       valueSerializer: org.springframework.kafka.support.serializer.JsonSerializer
@@ -57,6 +64,13 @@ spring:
 #tag::healthShowDetails[]
 #tag::infoGitModeFull[]
 tacocloud:
+  messaging:
+    jms:
+      destination: ${TACOCLOUD_JMS_DESTINATION:tacocloud.order.queue}
+    rabbit:
+      destination: ${TACOCLOUD_RABBIT_DESTINATION:tacocloud.order.queue}
+    kafka:
+      topic: ${TACOCLOUD_KAFKA_TOPIC:tacocloud.orders.topic}
   cors:
     allowed-origins: http://localhost:4200
   orders:

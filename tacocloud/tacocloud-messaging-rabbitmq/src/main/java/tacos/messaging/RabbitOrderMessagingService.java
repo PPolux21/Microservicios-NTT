@@ -5,22 +5,21 @@ import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessagePostProcessor;
 import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 
-@Service
 public class RabbitOrderMessagingService
        implements OrderMessagingService {
   
-  private RabbitTemplate rabbit;
+  private final RabbitTemplate rabbit;
+  private final String destination;
   
-  @Autowired
-  public RabbitOrderMessagingService(RabbitTemplate rabbit) {
+  public RabbitOrderMessagingService(RabbitTemplate rabbit,
+      String destination) {
     this.rabbit = rabbit;
+    this.destination = destination;
   }
   
   public void sendOrder(OrderEvent event) {
-    rabbit.convertAndSend("tacocloud.order.queue", event,
+    rabbit.convertAndSend(destination,event,
         new MessagePostProcessor() {
           @Override
           public Message postProcessMessage(Message message)

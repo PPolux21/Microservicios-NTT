@@ -2,38 +2,38 @@ server:
   port: 8081
 
 tacocloud:
+  messaging:
+    jms:
+      destination: ${TACOCLOUD_JMS_DESTINATION:tacocloud.order.queue}
+    rabbit:
+      destination: ${TACOCLOUD_RABBIT_DESTINATION:tacocloud.order.queue}
+    kafka:
+      topic: ${TACOCLOUD_KAFKA_TOPIC:tacocloud.orders.topic}
   kitchen:
     api-base-url: ${TACOCLOUD_API_URL:http://localhost:8080}
     username: ${TACOCLOUD_KITCHEN_USERNAME:kitchen}
     password: ${TACOCLOUD_KITCHEN_PASSWORD:}
 
----
 spring:
-  profiles: jms-template, jms-listener
-# The values given here are actually the default values. But they are explicitly
-# set here as an example of setting the Artemis properties.
-  jms:
-    template:
-      receive-timeout: 2
   artemis:
-    host: localhost
-    port: 61616
-    user: tacoweb
-    password: letm31n
+    host: ${ARTEMIS_HOST:localhost}
+    port: ${ARTEMIS_PORT:61616}
+    user: ${ARTEMIS_USERNAME:guest}
+    password: ${ARTEMIS_PASSWORD:guest}
     embedded:
       enabled: false
-    
----
-spring:
-  profiles: kafka-listener
-    
+  rabbitmq:
+    host: ${RABBIT_HOST:localhost}
+    port: ${RABBIT_PORT:5672}
+    username: ${RABBIT_USERNAME:guest}
+    password: ${RABBIT_PASSWORD:guest}
   kafka:
-    bootstrap-servers:
-    - localhost:9092
-    template:
-      default-topic: tacocloud.orders.topic
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       group-id: tacocloud_kitchen
       properties:
         spring.json.trusted.packages: tacos.messaging
+  jms:
+    template:
+      receive-timeout: 2

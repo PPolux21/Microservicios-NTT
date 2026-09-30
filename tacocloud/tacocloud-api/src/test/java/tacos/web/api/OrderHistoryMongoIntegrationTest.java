@@ -148,7 +148,7 @@ public class OrderHistoryMongoIntegrationTest {
     @Bean
     OrderService orderService(OrderRepository orders,UserRepository users) {
       return new OrderService(
-          orders,null,null,users,null,null,null,null,null,null,null);
+          orders,null,null,users,null,null,null,null,null,null,null,null);
     }
   }
 }

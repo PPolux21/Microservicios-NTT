@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import tacos.actuator.TacoMetrics;
 import tacos.Ingredient;
 import tacos.InventoryReservation;
 import tacos.InventoryReservation.ReservationItem;
@@ -29,9 +30,11 @@ import tacos.web.api.error.ApiExceptionHandler.ApiException;
 public class InventoryService {
 
   private final ReactiveMongoTemplate mongo;
+  private final TacoMetrics metrics;
 
-  public InventoryService(ReactiveMongoTemplate mongo) {
+  public InventoryService(ReactiveMongoTemplate mongo,TacoMetrics metrics) {
     this.mongo = mongo;
+    this.metrics = metrics;
   }
 
   public Mono<InventoryReservation> reserve(TacoOrder orderDraft) {
@@ -96,6 +99,7 @@ public class InventoryService {
     return mongo.updateFirst(enoughStock,decrement,Ingredient.class)
         .flatMap(result -> {
           if (result.getModifiedCount() != 1) {
+            metrics.stockRejected();
             return Mono.error(ApiException.conflict(
                 "INSUFFICIENT_STOCK",
                 "Insufficient stock for ingredient "

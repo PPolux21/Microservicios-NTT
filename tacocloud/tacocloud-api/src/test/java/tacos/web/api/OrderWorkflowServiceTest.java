@@ -33,9 +33,11 @@ import org.springframework.security.core.authority.AuthorityUtils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 import tacos.TacoOrder;
+import tacos.actuator.TacoMetrics;
 import tacos.TacoOrder.ChangeOrigin;
 import tacos.TacoOrder.OrderStatusHistoryEntry;
 import tacos.TacoOrder.Status;
@@ -60,6 +62,8 @@ public class OrderWorkflowServiceTest {
   private OrderMessagingService orderMessages;
   private OrderOutboxService orderOutbox;
   private OrderWorkflowService workflow;
+  private TacoMetrics metrics;
+  private SimpleMeterRegistry meterRegistry;
 
   @BeforeEach
   public void setup() {
@@ -68,6 +72,8 @@ public class OrderWorkflowServiceTest {
     inventory = Mockito.mock(InventoryService.class);
     orderMessages = Mockito.mock(OrderMessagingService.class);
     orderOutbox = Mockito.mock(OrderOutboxService.class);
+    meterRegistry = new SimpleMeterRegistry();
+    metrics = new TacoMetrics(meterRegistry);
     when(orderOutbox.saveStatusChanged(any(TacoOrder.class),any(Status.class),
         any(String.class),org.mockito.ArgumentMatchers.nullable(String.class)))
         .thenAnswer(invocation -> {
@@ -80,7 +86,8 @@ public class OrderWorkflowServiceTest {
                   saved,previous,correlationId,reason)));
         });
     workflow = new OrderWorkflowService(
-        orders,users,inventory,Clock.fixed(NOW,ZoneOffset.UTC),orderOutbox);
+        orders,users,inventory,Clock.fixed(NOW,ZoneOffset.UTC),orderOutbox,
+        metrics);
   }
 
   @Test
@@ -102,6 +109,28 @@ public class OrderWorkflowServiceTest {
     verify(orderMessages).sendOrder(event.capture());
     assertEquals("http-status-31",event.getValue().getCorrelationId());
     assertEquals(OrderEventType.STATUS_CHANGED,event.getValue().getEventType());
+  }
+
+  @Test
+  public void shouldRecordKitchenLatencyFromAcceptedToReady() {
+    TacoOrder order = order("ORDER-LATENCY","OWNER",Status.PREPARING);
+    order.addStatusHistory(new OrderStatusHistoryEntry(
+        Status.CREATED,Status.ACCEPTED,Date.from(NOW.minusSeconds(90)),
+        "cook",ChangeOrigin.KITCHEN_API,"accepted"));
+    when(orders.findById("ORDER-LATENCY")).thenReturn(Mono.just(order));
+    when(orders.save(any(TacoOrder.class)))
+        .thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
+
+    StepVerifier.create(workflow.transition(
+        "ORDER-LATENCY",Status.READY,"ready",
+        authentication("cook","ROLE_KITCHEN")))
+        .expectNextCount(1)
+        .verifyComplete();
+
+    assertEquals(1L,meterRegistry.get(TacoMetrics.KITCHEN_LATENCY)
+        .timer().count());
+    assertEquals(90.0,meterRegistry.get(TacoMetrics.KITCHEN_LATENCY)
+        .timer().totalTime(java.util.concurrent.TimeUnit.SECONDS));
   }
 
   @ParameterizedTest(name="{0} -> {1} as {2}: allowed={3}")
@@ -321,6 +350,8 @@ public class OrderWorkflowServiceTest {
     assertEquals("CANCELLED",event.getValue().getPayload().getStatus());
     assertEquals("changed mind",
         event.getValue().getPayload().getCancellationReason());
+    assertEquals(1.0,meterRegistry.get(TacoMetrics.ORDERS_CANCELLED)
+        .counter().count());
   }
 
   @Test

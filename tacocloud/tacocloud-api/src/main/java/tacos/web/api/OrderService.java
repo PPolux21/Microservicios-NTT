@@ -19,8 +19,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.dao.DuplicateKeyException;
 
+import io.micrometer.core.instrument.Timer;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import tacos.actuator.TacoMetrics;
 import tacos.Ingredient;
 import tacos.ReorderAttempt;
 import tacos.ReorderAttempt.Status;
@@ -67,6 +69,7 @@ public class OrderService {
   private TacoClassificationService classificationService;
   private TacoDesignValidator designValidator;
   private ReorderAttemptRepository reorderAttemptRepo;
+  private TacoMetrics metrics;
   private int maxQuantity = 10;
 
   public OrderService(
@@ -80,7 +83,8 @@ public class OrderService {
       InventoryService inventoryService,
       TacoClassificationService classificationService,
       TacoDesignValidator designValidator,
-      ReorderAttemptRepository reorderAttemptRepo) {
+      ReorderAttemptRepository reorderAttemptRepo,
+      TacoMetrics metrics) {
 
     this.repo = repo;
     this.orderOutbox = orderOutbox;
@@ -93,6 +97,7 @@ public class OrderService {
     this.classificationService = classificationService;
     this.designValidator = designValidator;
     this.reorderAttemptRepo = reorderAttemptRepo;
+    this.metrics = metrics;
   }
 
   @Value("${tacocloud.orders.max-quantity:10}")
@@ -107,6 +112,20 @@ public class OrderService {
   }
 
   private Mono<TacoOrder> createOrder(OrderCreateCommand command,
+      Authentication authentication,String requestedOrderId) {
+
+    return Mono.defer(() -> {
+      Timer.Sample sample = metrics.startOrderPlacement();
+      return createOrderAttempt(command,authentication,requestedOrderId)
+          .doOnSuccess(order -> metrics.orderPlacementFinished(sample,"success"))
+          .doOnError(error -> {
+            metrics.orderFailed();
+            metrics.orderPlacementFinished(sample,"failure");
+          });
+    });
+  }
+
+  private Mono<TacoOrder> createOrderAttempt(OrderCreateCommand command,
       Authentication authentication,String requestedOrderId) {
 
     if (authentication == null) {
@@ -499,7 +518,9 @@ public class OrderService {
   public Mono<TacoOrder> createOrderFromEmail(
       Mono<EmailOrder> emailOrder) {
 
-    return emailOrderService
+    return Mono.defer(() -> {
+      Timer.Sample sample = metrics.startOrderPlacement();
+      return emailOrderService
         .convertEmailOrderToDomainOrder(emailOrder)
 
         .map(order -> {
@@ -515,7 +536,13 @@ public class OrderService {
 
         .flatMap(order -> CorrelationIdWebFilter.currentCorrelationId()
             .flatMap(correlationId -> orderOutbox.saveCreated(
-                order,correlationId)));
+                order,correlationId)))
+        .doOnSuccess(order -> metrics.orderPlacementFinished(sample,"success"))
+        .doOnError(error -> {
+          metrics.orderFailed();
+          metrics.orderPlacementFinished(sample,"failure");
+        });
+    });
   }
 
   public boolean canAccessOrder(TacoOrder order,

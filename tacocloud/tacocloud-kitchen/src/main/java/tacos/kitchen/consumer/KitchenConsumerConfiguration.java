@@ -8,6 +8,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
 import org.springframework.data.mongodb.repository.config.EnableReactiveMongoRepositories;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import tacos.actuator.TacoMetrics;
 import tacos.data.OrderRepository;
 import tacos.data.UserRepository;
 import tacos.data.outbox.OutboxEventRepository;
@@ -27,23 +29,29 @@ public class KitchenConsumerConfiguration {
   }
 
   @Bean
-  InventoryService kitchenInventoryService(ReactiveMongoTemplate mongo) {
-    return new InventoryService(mongo);
+  TacoMetrics kitchenTacoMetrics(MeterRegistry registry) {
+    return new TacoMetrics(registry);
+  }
+
+  @Bean
+  InventoryService kitchenInventoryService(ReactiveMongoTemplate mongo,
+      TacoMetrics metrics) {
+    return new InventoryService(mongo,metrics);
   }
 
   @Bean
   OrderOutboxService kitchenOrderOutboxService(OrderRepository orders,
       OutboxEventRepository outbox,
       org.springframework.transaction.reactive.TransactionalOperator transactions,
-      Clock clock) {
-    return new OrderOutboxService(orders,outbox,transactions,clock);
+      Clock clock,TacoMetrics metrics) {
+    return new OrderOutboxService(orders,outbox,transactions,clock,metrics);
   }
 
   @Bean
   OrderWorkflowService kitchenOrderWorkflowService(OrderRepository orders,
       UserRepository users,InventoryService inventory,Clock clock,
-      OrderOutboxService orderOutbox) {
+      OrderOutboxService orderOutbox,TacoMetrics metrics) {
     return new OrderWorkflowService(
-        orders,users,inventory,clock,orderOutbox);
+        orders,users,inventory,clock,orderOutbox,metrics);
   }
 }

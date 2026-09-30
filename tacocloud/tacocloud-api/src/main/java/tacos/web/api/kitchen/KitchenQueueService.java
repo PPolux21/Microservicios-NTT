@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import org.springframework.dao.DuplicateKeyException;
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Service;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import tacos.actuator.TacoMetrics;
 import tacos.Ingredient;
 import tacos.Taco;
 import tacos.TacoOrder;
@@ -39,21 +41,28 @@ public class KitchenQueueService {
   private final OrderWorkflowService workflow;
   private final KitchenProperties properties;
   private final Clock clock;
+  private final TacoMetrics metrics;
 
   public KitchenQueueService(ReactiveMongoTemplate mongo,
-      OrderWorkflowService workflow,KitchenProperties properties,Clock clock) {
+      OrderWorkflowService workflow,KitchenProperties properties,Clock clock,
+      TacoMetrics metrics) {
     this.mongo = mongo;
     this.workflow = workflow;
     this.properties = properties;
     this.clock = clock;
+    this.metrics = metrics;
   }
 
   public Flux<KitchenOrderResponse> queue(Authentication authentication) {
     requireKitchen(authentication);
-    Query created = createdQueueQuery();
-    return mongo.find(created,TacoOrder.class)
-        .index()
-        .map(indexed -> toResponse(indexed.getT2(),indexed.getT1()));
+    return Flux.defer(() -> {
+      AtomicLong queued = new AtomicLong();
+      return mongo.find(createdQueueQuery(),TacoOrder.class)
+          .index()
+          .doOnNext(ignored -> queued.incrementAndGet())
+          .map(indexed -> toResponse(indexed.getT2(),indexed.getT1()))
+          .doOnComplete(() -> metrics.setKitchenQueue(queued.get()));
+    });
   }
 
   public Mono<KitchenOrderResponse> claimNext(Authentication authentication) {
@@ -70,7 +79,12 @@ public class KitchenQueueService {
             ? Mono.error(stationBusy(stationId))
             : atomicClaim(stationId,cookId))
         .onErrorMap(DuplicateKeyException.class,
-            error -> stationBusy(stationId));
+            error -> stationBusy(stationId))
+        .doOnSuccess(order -> {
+          if (order != null) {
+            metrics.kitchenOrderLeftQueue();
+          }
+        });
   }
 
   public int estimatedPrepMinutes(TacoOrder order,long queueAhead) {

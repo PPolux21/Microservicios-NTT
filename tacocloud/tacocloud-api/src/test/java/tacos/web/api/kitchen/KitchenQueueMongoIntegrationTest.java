@@ -41,6 +41,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.Signal;
 import reactor.test.StepVerifier;
 import tacos.Ingredient;
+import tacos.actuator.TacoMetrics;
 import tacos.Taco;
 import tacos.TacoOrder;
 import tacos.TacoOrder.OrderItem;
@@ -74,6 +75,9 @@ public class KitchenQueueMongoIntegrationTest {
 
   @Autowired
   private Clock clock;
+
+  @Autowired
+  private TacoMetrics metrics;
 
   @MockBean
   private OrderWorkflowService workflow;
@@ -229,7 +233,7 @@ public class KitchenQueueMongoIntegrationTest {
     KitchenProperties config = new KitchenProperties();
     config.setStationId(stationId);
     config.setEta(stationAProperties.getEta());
-    return new KitchenQueueService(mongo,workflow,config,clock);
+    return new KitchenQueueService(mongo,workflow,config,clock,metrics);
   }
 
   private Authentication kitchen(String name) {
@@ -264,7 +268,7 @@ public class KitchenQueueMongoIntegrationTest {
 
   @SpringBootConfiguration
   @EnableAutoConfiguration
-  @Import({KitchenQueueService.class,KitchenProperties.class})
+  @Import({KitchenQueueService.class,KitchenProperties.class,TacoMetrics.class})
   static class TestApplication {
 
     @Bean

@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import tacos.actuator.TacoMetrics;
 import tacos.data.outbox.OutboxEvent;
 import tacos.data.outbox.OutboxStatus;
 import tacos.messaging.OrderMessagingService;
@@ -27,26 +28,37 @@ public class OutboxPublisher {
   private final OutboxProperties properties;
   private final Clock clock;
   private final String publisherId;
+  private final TacoMetrics metrics;
 
   public OutboxPublisher(ReactiveMongoTemplate mongo,
-      OrderMessagingService messages,OutboxProperties properties,Clock clock) {
-    this(mongo,messages,properties,clock,UUID.randomUUID().toString());
+      OrderMessagingService messages,OutboxProperties properties,Clock clock,
+      TacoMetrics metrics) {
+    this(mongo,messages,properties,clock,metrics,UUID.randomUUID().toString());
   }
 
   OutboxPublisher(ReactiveMongoTemplate mongo,
       OrderMessagingService messages,OutboxProperties properties,Clock clock,
-      String publisherId) {
+      TacoMetrics metrics,String publisherId) {
     this.mongo = mongo;
     this.messages = messages;
     this.properties = properties;
     this.clock = clock;
+    this.metrics = metrics;
     this.publisherId = publisherId;
   }
 
   public Mono<Void> publishBatch() {
-    return Flux.range(0,properties.getBatchSize())
+    return refreshBacklog().thenMany(Flux.range(0,properties.getBatchSize())
         .concatMap(ignored -> claimNext(clock.instant()))
-        .concatMap(this::publishClaimed)
+        .concatMap(this::publishClaimed))
+        .then(refreshBacklog());
+  }
+
+  private Mono<Void> refreshBacklog() {
+    Query pending = Query.query(Criteria.where("status").in(
+        OutboxStatus.NEW,OutboxStatus.PUBLISHING));
+    return mongo.count(pending,OutboxEvent.class)
+        .doOnNext(metrics::setOutboxBacklog)
         .then();
   }
 

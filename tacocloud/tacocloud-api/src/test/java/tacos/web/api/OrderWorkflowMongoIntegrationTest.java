@@ -27,6 +27,7 @@ import org.springframework.security.core.authority.AuthorityUtils;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 import tacos.TacoOrder;
+import tacos.actuator.TacoMetrics;
 import tacos.TacoOrder.Status;
 import tacos.data.OrderRepository;
 import tacos.web.api.outbox.OrderOutboxService;
@@ -91,7 +92,7 @@ public class OrderWorkflowMongoIntegrationTest {
   @SpringBootConfiguration
   @EnableAutoConfiguration
   @EnableReactiveMongoRepositories(basePackageClasses=OrderRepository.class)
-  @Import({OrderWorkflowService.class,TestConfig.class})
+  @Import({OrderWorkflowService.class,TestConfig.class,TacoMetrics.class})
   static class TestApplication {
   }
 

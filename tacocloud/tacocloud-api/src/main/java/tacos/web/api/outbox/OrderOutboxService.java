@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.reactive.TransactionalOperator;
 
 import reactor.core.publisher.Mono;
+import tacos.actuator.TacoMetrics;
 import tacos.TacoOrder;
 import tacos.TacoOrder.Status;
 import tacos.data.OrderRepository;
@@ -21,19 +22,23 @@ public class OrderOutboxService {
   private final OutboxEventRepository outbox;
   private final TransactionalOperator transactions;
   private final Clock clock;
+  private final TacoMetrics metrics;
 
   public OrderOutboxService(OrderRepository orders,
       OutboxEventRepository outbox,TransactionalOperator transactions,
-      Clock clock) {
+      Clock clock,TacoMetrics metrics) {
     this.orders = orders;
     this.outbox = outbox;
     this.transactions = transactions;
     this.clock = clock;
+    this.metrics = metrics;
   }
 
   public Mono<TacoOrder> saveCreated(TacoOrder order,String correlationId) {
     return save(order,saved ->
-        OrderEventMapper.orderCreated(saved,correlationId));
+        OrderEventMapper.orderCreated(saved,correlationId))
+        .doOnSuccess(saved -> metrics.orderCreated(
+            saved.getAppliedCouponCode() != null));
   }
 
   public Mono<TacoOrder> saveStatusChanged(TacoOrder order,
@@ -52,6 +57,7 @@ public class OrderOutboxService {
         .flatMap(saved -> outbox.save(OutboxEvent.pending(
             eventFactory.apply(saved),clock.instant()))
             .thenReturn(saved));
-    return transactions.transactional(operation);
+    return transactions.transactional(operation)
+        .doOnSuccess(saved -> metrics.outboxAdded());
   }
 }

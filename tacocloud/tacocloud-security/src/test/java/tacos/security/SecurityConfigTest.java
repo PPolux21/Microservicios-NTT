@@ -306,6 +306,17 @@ public class SecurityConfigTest {
         .andExpect(
             status().isOk());
 
+    mvc.perform(get("/actuator/metrics"))
+        .andExpect(status().isUnauthorized());
+
+    mvc.perform(get("/actuator/metrics")
+            .with(user("jose").roles("USER")))
+        .andExpect(status().isForbidden());
+
+    mvc.perform(get("/actuator/metrics")
+            .with(user("admin").roles("ADMIN")))
+        .andExpect(status().isOk());
+
     mvc.perform(
         get("/data-api/users")
             .with(
@@ -367,6 +378,11 @@ public class SecurityConfigTest {
 
     @GetMapping("/actuator/info")
     public String info() {
+      return "ok";
+    }
+
+    @GetMapping("/actuator/metrics")
+    public String metrics() {
       return "ok";
     }
 

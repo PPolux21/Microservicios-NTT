@@ -34,10 +34,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.security.core.Authentication;
 import org.springframework.data.domain.Pageable;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 import tacos.Ingredient;
+import tacos.actuator.TacoMetrics;
 import tacos.Ingredient.Allergen;
 import tacos.Ingredient.DietaryTag;
 import tacos.Ingredient.SpiceLevel;
@@ -86,6 +88,8 @@ public class OrderServiceTest {
   private TacoClassificationService classificationService;
   private TacoDesignValidator designValidator;
   private ReorderAttemptRepository reorderAttemptRepo;
+  private TacoMetrics metrics;
+  private SimpleMeterRegistry meterRegistry;
 
   @BeforeEach
   public void setup() {
@@ -108,6 +112,8 @@ public class OrderServiceTest {
     inventoryService = Mockito.mock(InventoryService.class);
     classificationService = new TacoClassificationService(ingredientRepo);
     designValidator = Mockito.mock(TacoDesignValidator.class);
+    meterRegistry = new SimpleMeterRegistry();
+    metrics = new TacoMetrics(meterRegistry);
     reorderAttemptRepo = Mockito.mock(ReorderAttemptRepository.class);
     when(designValidator.validateResolved(
         any(String.class),any(List.class),any(List.class)))
@@ -138,7 +144,7 @@ public class OrderServiceTest {
     service = new OrderService(
         repo,orderOutbox,emailOrderService,userRepo,paymentMethodRepo,
         ingredientRepo,couponService,inventoryService,classificationService,
-        designValidator,reorderAttemptRepo);
+        designValidator,reorderAttemptRepo,metrics);
   }
 
 
@@ -392,6 +398,12 @@ public class OrderServiceTest {
       service.createOrder(command,authentication))
       .expectNext(saved)
       .verifyComplete();
+
+    assertEquals(1.0,meterRegistry.get(TacoMetrics.ORDER_PLACEMENT)
+        .tag("result","success").timer().count());
+    assertTrue(meterRegistry.get(TacoMetrics.ORDER_PLACEMENT)
+        .tag("result","success").timer().totalTime(
+            java.util.concurrent.TimeUnit.NANOSECONDS) > 0.0);
 
     ArgumentCaptor<TacoOrder> captor =
         ArgumentCaptor.forClass(TacoOrder.class);
@@ -707,6 +719,11 @@ public class OrderServiceTest {
     StepVerifier.create(service.createOrder(orderCommand(2,"FLTO"),authentication))
         .expectErrorMessage("synthetic save failure")
         .verify();
+
+    assertEquals(1.0,meterRegistry.get(TacoMetrics.ORDERS_FAILED)
+        .counter().count());
+    assertEquals(1L,meterRegistry.get(TacoMetrics.ORDER_PLACEMENT)
+        .tag("result","failure").timer().count());
 
     ArgumentCaptor<TacoOrder> draft = ArgumentCaptor.forClass(TacoOrder.class);
     verify(inventoryService).reserve(draft.capture());

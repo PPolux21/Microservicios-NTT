@@ -7,6 +7,9 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import tacos.actuator.TacoMetrics;
 import java.util.Arrays;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -65,7 +68,8 @@ public class KitchenQueueServiceTest {
   private KitchenQueueService service(KitchenProperties config) {
     return new KitchenQueueService(
         null,null,config,
-        Clock.fixed(Instant.parse("2026-09-29T18:00:00Z"),ZoneOffset.UTC));
+        Clock.fixed(Instant.parse("2026-09-29T18:00:00Z"),ZoneOffset.UTC),
+        new TacoMetrics(new SimpleMeterRegistry()));
   }
 
   private KitchenProperties properties(

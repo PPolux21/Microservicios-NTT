@@ -27,7 +27,9 @@ import tacos.InventoryReservation.Status;
 import tacos.Taco;
 import tacos.TacoOrder;
 import tacos.TacoOrder.OrderItem;
+import tacos.actuator.TacoMetrics;
 import tacos.web.api.error.ApiExceptionHandler.ApiException;
+import io.micrometer.core.instrument.MeterRegistry;
 
 @SpringBootTest(
     classes=InventoryServiceMongoIntegrationTest.TestApplication.class,
@@ -41,8 +43,16 @@ public class InventoryServiceMongoIntegrationTest {
   @Autowired
   private ReactiveMongoTemplate mongo;
 
+  @Autowired
+  private MeterRegistry meterRegistry;
+
   @Test
   public void shouldAllowOnlyOneConcurrentBuyerForStockOne() {
+
+    double rejectedBefore = meterRegistry.find(TacoMetrics.INVENTORY_REJECTED)
+        .counter() != null
+            ? meterRegistry.find(TacoMetrics.INVENTORY_REJECTED).counter().count()
+            : 0.0;
 
     Mono<Signal<InventoryReservation>> first = inventoryService
         .reserve(order("ORDER-A",line(1,"ONLY"))).materialize();
@@ -73,6 +83,8 @@ public class InventoryServiceMongoIntegrationTest {
           assertTrue(result.ingredient.getStockOnHand() >= 0);
         })
         .verifyComplete();
+    assertEquals(rejectedBefore + 1.0,
+        meterRegistry.get(TacoMetrics.INVENTORY_REJECTED).counter().count());
   }
 
   @Test
@@ -251,7 +263,7 @@ public class InventoryServiceMongoIntegrationTest {
 
   @SpringBootConfiguration
   @EnableAutoConfiguration
-  @Import(InventoryService.class)
+  @Import({InventoryService.class,TacoMetrics.class})
   static class TestApplication {
   }
 }

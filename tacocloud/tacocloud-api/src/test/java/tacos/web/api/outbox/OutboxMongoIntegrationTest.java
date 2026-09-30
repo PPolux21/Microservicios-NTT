@@ -45,6 +45,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 import tacos.TacoOrder;
+import tacos.actuator.TacoMetrics;
 import tacos.TacoOrder.Status;
 import tacos.User;
 import tacos.data.OrderRepository;
@@ -82,6 +83,7 @@ public class OutboxMongoIntegrationTest {
   @Autowired private OrderOutboxService orderOutbox;
   @Autowired private ReactiveMongoTemplate mongo;
   @Autowired private Clock clock;
+  @Autowired private TacoMetrics metrics;
 
   @BeforeEach
   public void clean() {
@@ -202,7 +204,7 @@ public class OutboxMongoIntegrationTest {
     retryPolicy.setMaxAttempts(5);
     retryPolicy.setInitialBackoff(Duration.ofSeconds(5));
     OutboxPublisher beforeRestart = new OutboxPublisher(
-        mongo,failing,retryPolicy,clock,"publisher-before-restart");
+        mongo,failing,retryPolicy,clock,metrics,"publisher-before-restart");
 
     StepVerifier.create(beforeRestart.publishBatch()).verifyComplete();
     StepVerifier.create(outbox.findAll().single())
@@ -216,7 +218,8 @@ public class OutboxMongoIntegrationTest {
     OrderMessagingService recovered = Mockito.mock(OrderMessagingService.class);
     Clock afterBackoff = Clock.fixed(NOW.plusSeconds(6),ZoneOffset.UTC);
     OutboxPublisher afterRestart = new OutboxPublisher(
-        mongo,recovered,retryPolicy,afterBackoff,"publisher-after-restart");
+        mongo,recovered,retryPolicy,afterBackoff,metrics,
+        "publisher-after-restart");
     StepVerifier.create(afterRestart.publishBatch()).verifyComplete();
 
     StepVerifier.create(outbox.findAll().single())
@@ -302,7 +305,7 @@ public class OutboxMongoIntegrationTest {
     properties.setMaxAttempts(maxAttempts);
     properties.setInitialBackoff(Duration.ZERO);
     properties.setClaimTimeout(Duration.ofMinutes(2));
-    return new OutboxPublisher(mongo,messages,properties,clock,id);
+    return new OutboxPublisher(mongo,messages,properties,clock,metrics,id);
   }
 
   private TacoOrder order(String id) {
@@ -327,7 +330,8 @@ public class OutboxMongoIntegrationTest {
       excludeFilters=@ComponentScan.Filter(
           type=FilterType.ASSIGNABLE_TYPE,
           classes=ProcessedEventRepository.class))
-  @Import({MongoTransactionConfiguration.class,OrderOutboxService.class})
+  @Import({MongoTransactionConfiguration.class,OrderOutboxService.class,
+      TacoMetrics.class})
   static class TestApplication {
 
     @Bean

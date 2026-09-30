@@ -32,6 +32,7 @@ import org.springframework.security.core.authority.AuthorityUtils;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 import tacos.Ingredient;
+import tacos.actuator.TacoMetrics;
 import tacos.Ingredient.Type;
 import tacos.InventoryReservation;
 import tacos.InventoryReservation.Status;
@@ -75,6 +76,7 @@ public class OrderReorderServiceTest {
   private TacoOrder original;
   private Map<String,TacoOrder> storedOrders;
   private Map<String,ReorderAttempt> storedAttempts;
+  private TacoMetrics metrics;
 
   @BeforeEach
   public void setup() {
@@ -86,6 +88,7 @@ public class OrderReorderServiceTest {
     messages = Mockito.mock(OrderMessagingService.class);
     orderOutbox = Mockito.mock(OrderOutboxService.class);
     validator = Mockito.mock(TacoDesignValidator.class);
+    metrics = Mockito.mock(TacoMetrics.class);
     UserRepository users = Mockito.mock(UserRepository.class);
     storedOrders = new ConcurrentHashMap<>();
     storedAttempts = new ConcurrentHashMap<>();
@@ -159,7 +162,7 @@ public class OrderReorderServiceTest {
     service = new OrderService(
         orders,orderOutbox,Mockito.mock(EmailOrderService.class),users,payments,
         ingredients,coupons,inventory,
-        new TacoClassificationService(ingredients),validator,attempts);
+        new TacoClassificationService(ingredients),validator,attempts,metrics);
   }
 
   @Test
@@ -289,7 +292,7 @@ public class OrderReorderServiceTest {
     OrderService foreignService = new OrderService(
         orders,orderOutbox,Mockito.mock(EmailOrderService.class),foreignUsers,
         payments,ingredients,coupons,inventory,
-        new TacoClassificationService(ingredients),validator,attempts);
+        new TacoClassificationService(ingredients),validator,attempts,metrics);
 
     StepVerifier.create(foreignService.reorder(
         "ORDER-OLD","PAY-B",true,"KEY-OWNER",authentication("bob")))

@@ -1,6 +1,8 @@
 package tacos.web.api;
 
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.Date;
 import java.util.EnumMap;
@@ -12,6 +14,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 
 import reactor.core.publisher.Mono;
+import tacos.actuator.TacoMetrics;
 import tacos.TacoOrder;
 import tacos.TacoOrder.ChangeOrigin;
 import tacos.TacoOrder.OrderStatusHistoryEntry;
@@ -36,15 +39,17 @@ public class OrderWorkflowService {
   private final InventoryService inventory;
   private final Clock clock;
   private final OrderOutboxService orderOutbox;
+  private final TacoMetrics metrics;
 
   public OrderWorkflowService(OrderRepository orders,UserRepository users,
       InventoryService inventory,Clock clock,
-      OrderOutboxService orderOutbox) {
+      OrderOutboxService orderOutbox,TacoMetrics metrics) {
     this.orders = orders;
     this.users = users;
     this.inventory = inventory;
     this.clock = clock;
     this.orderOutbox = orderOutbox;
+    this.metrics = metrics;
   }
 
   public Mono<TacoOrder> transition(String orderId,Status target,
@@ -148,6 +153,7 @@ public class OrderWorkflowService {
     return CorrelationIdWebFilter.currentCorrelationId()
         .flatMap(correlationId -> orderOutbox.saveStatusChanged(
             order,current,correlationId,normalizedReason))
+        .doOnSuccess(saved -> recordTransitionMetrics(current,target,saved))
         .onErrorMap(OptimisticLockingFailureException.class,error ->
             ApiException.conflict(
                 "ORDER_VERSION_CONFLICT",
@@ -155,6 +161,25 @@ public class OrderWorkflowService {
         .flatMap(saved -> target == Status.CANCELLED
             ? inventory.release(saved.getId()).thenReturn(saved)
             : Mono.just(saved));
+  }
+
+  private void recordTransitionMetrics(Status current,Status target,
+      TacoOrder saved) {
+    if (current == Status.CREATED) {
+      metrics.kitchenOrderLeftQueue();
+    }
+    if (target == Status.CANCELLED) {
+      metrics.orderCancelled();
+    }
+    if (target == Status.READY && saved.getStatusHistory() != null) {
+      saved.getStatusHistory().stream()
+          .filter(entry -> entry.getToStatus() == Status.ACCEPTED)
+          .map(OrderStatusHistoryEntry::getChangedAt)
+          .filter(date -> date != null)
+          .findFirst()
+          .ifPresent(acceptedAt -> metrics.recordKitchenLatency(
+              Duration.between(acceptedAt.toInstant(),Instant.now(clock))));
+    }
   }
 
   private Set<String> rolesFor(Status current,Status target) {

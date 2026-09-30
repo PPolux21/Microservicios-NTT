@@ -82,6 +82,8 @@ tacocloud:
     poll-interval-ms: ${TACOCLOUD_OUTBOX_POLL_INTERVAL_MS:1000}
     publisher:
       enabled: ${TACOCLOUD_OUTBOX_PUBLISHER_ENABLED:true}
+    health-max-backlog: ${TACOCLOUD_OUTBOX_HEALTH_MAX_BACKLOG:100}
+    health-max-failed: ${TACOCLOUD_OUTBOX_HEALTH_MAX_FAILED:0}
   cors:
     allowed-origins: http://localhost:4200
   orders:
@@ -125,14 +127,22 @@ management:
   endpoints:
     web:
       exposure:
-        include: '*'
+        include: health,info,metrics,notes
 #end::exposeAll[]
         exclude: threaddump,heapdump
 #end::excludeSome[]
 #tag::healthShowDetails[]
   endpoint:
     health:
-      show-details: always
+      show-details: when_authorized
+      roles: ADMIN
+      probes:
+        enabled: true
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,mongo,outbox
 #end::healthShowDetails[]
 #tag::infoGitModeFull[]
   info:

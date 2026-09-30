@@ -247,6 +247,14 @@ public class RegistrationControllerTest {
             Mono.just(existing));
 
 
+    when(
+        userRepo.findByEmail(
+            "jose@test.com"))
+
+        .thenReturn(
+            Mono.empty());
+
+
     StepVerifier
         .create(
             controller

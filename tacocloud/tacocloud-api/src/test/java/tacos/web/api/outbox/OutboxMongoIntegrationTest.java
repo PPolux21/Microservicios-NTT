@@ -31,6 +31,7 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
+import org.springframework.data.mongodb.core.index.Index;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.repository.config.EnableReactiveMongoRepositories;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -43,6 +44,7 @@ import org.testcontainers.utility.DockerImageName;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 import tacos.TacoOrder;
 import tacos.actuator.TacoMetrics;
@@ -64,7 +66,7 @@ import tacos.web.api.mapper.OrderEventMapper;
 @SpringBootTest(
     classes=OutboxMongoIntegrationTest.TestApplication.class,
     webEnvironment=SpringBootTest.WebEnvironment.NONE,
-    properties="spring.data.mongodb.auto-index-creation=true")
+    properties="spring.data.mongodb.auto-index-creation=false")
 public class OutboxMongoIntegrationTest {
 
   private static final Instant NOW = Instant.parse("2026-09-29T18:00:00Z");
@@ -87,9 +89,22 @@ public class OutboxMongoIntegrationTest {
 
   @BeforeEach
   public void clean() {
-    mongo.remove(new Query(),TacoOrder.class)
+    ensureCollection(TacoOrder.class)
+        .then(ensureCollection(OutboxEvent.class))
+        .then(mongo.indexOps(OutboxEvent.class).ensureIndex(
+            new Index().on("eventId",
+                org.springframework.data.domain.Sort.Direction.ASC).unique()))
+        .then(mongo.remove(new Query(),TacoOrder.class))
         .then(mongo.remove(new Query(),OutboxEvent.class))
         .block();
+  }
+
+  private Mono<Void> ensureCollection(Class<?> type) {
+    return mongo.collectionExists(type)
+        .flatMap(exists -> exists
+            ? Mono.empty()
+            : mongo.createCollection(type).then())
+        .then();
   }
 
   @Test

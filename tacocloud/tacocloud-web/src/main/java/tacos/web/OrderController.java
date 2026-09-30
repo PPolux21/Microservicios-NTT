@@ -3,6 +3,7 @@ import javax.validation.Valid;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -76,9 +77,10 @@ public class OrderController {
   public String ordersForUser(
       @AuthenticationPrincipal User user, Model model) {
 
-    Pageable pageable = PageRequest.of(0, props.getPageSize());
+    Pageable pageable = PageRequest.of(0,props.getPageSize(),
+        Sort.by(Sort.Direction.DESC,"placedAt"));
     model.addAttribute("orders", 
-        orderRepo.findByUserOrderByPlacedAtDesc(user, pageable));
+        orderRepo.findByUserId(user.getId(),pageable));
     
     return "orderList";
   }

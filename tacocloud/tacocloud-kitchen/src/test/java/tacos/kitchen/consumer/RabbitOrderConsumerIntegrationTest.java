@@ -11,6 +11,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
+import java.time.Duration;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,6 +36,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 import tacos.TacoOrder;
 import tacos.TacoOrder.Status;
@@ -299,6 +302,7 @@ class RabbitOrderConsumerIntegrationTest {
     StepVerifier.create(dlqPublisher.publish(event,
         new PermanentOrderEventException("REPLAY_TEST","test")))
         .verifyComplete();
+    await(() -> queueDepth(DLQ) == 1);
     StepVerifier.create(replay.replayOne()).expectNext(true).verifyComplete();
     await(() -> metric("duplicate",OrderEventType.ORDER_CREATED)
         > duplicateBefore);
@@ -352,21 +356,19 @@ class RabbitOrderConsumerIntegrationTest {
     return counter != null ? counter.count() : 0;
   }
 
+  private long queueDepth(String queue) {
+    Long count = rabbit.execute(channel -> channel.messageCount(queue));
+    return count != null ? count : 0;
+  }
+
   private void await(BooleanSupplier condition) {
-    long deadline = System.nanoTime()
-        + java.util.concurrent.TimeUnit.SECONDS.toNanos(15);
-    while (System.nanoTime() < deadline) {
-      if (condition.getAsBoolean()) {
-        return;
-      }
-      try {
-        Thread.sleep(25);
-      } catch (InterruptedException error) {
-        Thread.currentThread().interrupt();
-        throw new AssertionError("Interrupted while awaiting result",error);
-      }
-    }
-    throw new AssertionError("Timed out awaiting asynchronous result");
+    StepVerifier.create(Flux.interval(Duration.ZERO,Duration.ofMillis(25))
+        .publishOn(Schedulers.boundedElastic())
+        .filter(ignored -> condition.getAsBoolean())
+        .next()
+        .timeout(Duration.ofSeconds(15)))
+        .expectNextCount(1)
+        .verifyComplete();
   }
 
   @TestConfiguration

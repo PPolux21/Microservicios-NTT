@@ -28,6 +28,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
+import org.springframework.data.mongodb.core.index.Index;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.repository.config.EnableReactiveMongoRepositories;
 import org.springframework.http.HttpStatus;
@@ -67,7 +68,7 @@ import tacos.web.api.outbox.OrderOutboxService;
 @SpringBootTest(
     classes=OrderIdempotencyMongoIntegrationTest.TestApplication.class,
     webEnvironment=SpringBootTest.WebEnvironment.NONE,
-    properties="spring.data.mongodb.auto-index-creation=true")
+    properties="spring.data.mongodb.auto-index-creation=false")
 public class OrderIdempotencyMongoIntegrationTest {
 
   private static final Instant NOW = Instant.parse("2026-09-30T12:00:00Z");
@@ -92,12 +93,38 @@ public class OrderIdempotencyMongoIntegrationTest {
 
   @BeforeEach
   public void clean() {
-    Mono.when(
-        mongo.remove(new Query(),IdempotencyRecord.class),
-        mongo.remove(new Query(),InventoryReservation.class),
-        mongo.remove(new Query(),TacoOrder.class),
-        mongo.remove(new Query(),OutboxEvent.class),
-        mongo.remove(new Query(),Ingredient.class)).block();
+    ensureCollection(IdempotencyRecord.class)
+        .then(ensureCollection(InventoryReservation.class))
+        .then(ensureCollection(TacoOrder.class))
+        .then(ensureCollection(OutboxEvent.class))
+        .then(ensureCollection(Ingredient.class))
+        .then(mongo.indexOps(IdempotencyRecord.class).ensureIndex(
+            new Index()
+                .on("userId",org.springframework.data.domain.Sort.Direction.ASC)
+                .on("key",org.springframework.data.domain.Sort.Direction.ASC)
+                .named("idempotency_user_key_unique").unique()))
+        .then(mongo.indexOps(IdempotencyRecord.class).ensureIndex(
+            new Index("expiresAt",
+                org.springframework.data.domain.Sort.Direction.ASC)
+                .named("idempotency_expiry_ttl").expire(Duration.ZERO)))
+        .then(mongo.indexOps(OutboxEvent.class).ensureIndex(
+            new Index("eventId",
+                org.springframework.data.domain.Sort.Direction.ASC).unique()))
+        .then(Mono.when(
+            mongo.remove(new Query(),IdempotencyRecord.class),
+            mongo.remove(new Query(),InventoryReservation.class),
+            mongo.remove(new Query(),TacoOrder.class),
+            mongo.remove(new Query(),OutboxEvent.class),
+            mongo.remove(new Query(),Ingredient.class)))
+        .block();
+  }
+
+  private Mono<Void> ensureCollection(Class<?> type) {
+    return mongo.collectionExists(type)
+        .flatMap(exists -> exists
+            ? Mono.empty()
+            : mongo.createCollection(type).then())
+        .then();
   }
 
   @Test

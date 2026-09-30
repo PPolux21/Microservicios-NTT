@@ -82,29 +82,11 @@
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
-		<dependency>
-			<groupId>org.seleniumhq.selenium</groupId>
-  		<artifactId>selenium-java</artifactId>
-  		<scope>test</scope>
-		</dependency>
-		<dependency>
-  		<groupId>org.seleniumhq.selenium</groupId>
-  		<artifactId>htmlunit-driver</artifactId>
-  		<scope>test</scope>
-		</dependency>
-
 		<!-- For the sake of the configuration properties class -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-configuration-processor</artifactId>
 			<optional>true</optional>
-		</dependency>
-
-		<dependency>
-			<groupId>io.github.bonigarcia</groupId>
-			<artifactId>webdrivermanager</artifactId>
-			<version>4.4.3</version>
-			<scope>test</scope>
 		</dependency>
 	</dependencies>
 

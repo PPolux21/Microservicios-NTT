@@ -19,6 +19,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
 
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import lombok.Getter;
 
@@ -30,6 +32,8 @@ import tacos.web.api.error.ApiProblem.Violation;
 @RestControllerAdvice
 public class ApiExceptionHandler {
 
+  private static final Logger LOGGER =
+      LoggerFactory.getLogger(ApiExceptionHandler.class);
   private static final MediaType PROBLEM_JSON =
       MediaType.parseMediaType("application/problem+json");
 
@@ -160,6 +164,9 @@ public class ApiExceptionHandler {
 
   @ExceptionHandler(Exception.class)
   public ResponseEntity<ApiProblem> handleUnexpected(Exception exception,HttpServletRequest request) {
+
+    LOGGER.error("Unexpected API error path={} errorType={}",
+        request.getRequestURI(),exception.getClass().getSimpleName(),exception);
 
     return problem(
         HttpStatus.INTERNAL_SERVER_ERROR,

@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 11
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "11"
+          cache: maven
+
+      - name: Verify all modules
+        working-directory: tacocloud
+        run: mvn --batch-mode clean verify
+
+      - name: Preserve Maven test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maven-test-reports
+          path: |
+            tacocloud/**/target/surefire-reports/**
+            tacocloud/**/target/failsafe-reports/**
+          if-no-files-found: warn
+

@@ -11,6 +11,7 @@ import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import reactor.core.publisher.Flux;
@@ -30,6 +31,7 @@ public class OutboxPublisher {
   private final String publisherId;
   private final TacoMetrics metrics;
 
+  @Autowired
   public OutboxPublisher(ReactiveMongoTemplate mongo,
       OrderMessagingService messages,OutboxProperties properties,Clock clock,
       TacoMetrics metrics) {

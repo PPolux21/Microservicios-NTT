@@ -2,6 +2,8 @@ package tacos.web.api;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -15,10 +17,13 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
+import org.springframework.dao.DuplicateKeyException;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import tacos.Ingredient;
+import tacos.ReorderAttempt;
+import tacos.ReorderAttempt.Status;
 import tacos.Taco;
 import tacos.User;
 import tacos.TacoOrder;
@@ -28,6 +33,7 @@ import tacos.web.api.mapper.ApiMapper.OrderCreateCommand;
 import tacos.web.api.mapper.ApiMapper.OrderItemCommand;
 import tacos.web.api.mapper.ApiMapper.OrderQuote;
 import tacos.web.api.mapper.ApiMapper.OrderQuoteCommand;
+import tacos.web.api.mapper.ApiMapper.TacoCommand;
 import tacos.web.api.coupon.CouponService;
 import tacos.web.api.coupon.CouponService.CouponApplication;
 import tacos.web.api.TacoClassificationService.ClassifiedTaco;
@@ -35,6 +41,7 @@ import tacos.web.api.error.ApiExceptionHandler.ApiException;
 import tacos.data.IngredientRepository;
 import tacos.data.OrderRepository;
 import tacos.data.PaymentMethodRepository;
+import tacos.data.ReorderAttemptRepository;
 import tacos.data.UserRepository;
 import tacos.messaging.OrderMessagingService;
 import lombok.AllArgsConstructor;
@@ -57,6 +64,7 @@ public class OrderService {
   private InventoryService inventoryService;
   private TacoClassificationService classificationService;
   private TacoDesignValidator designValidator;
+  private ReorderAttemptRepository reorderAttemptRepo;
   private int maxQuantity = 10;
 
   public OrderService(
@@ -69,7 +77,8 @@ public class OrderService {
       CouponService couponService,
       InventoryService inventoryService,
       TacoClassificationService classificationService,
-      TacoDesignValidator designValidator) {
+      TacoDesignValidator designValidator,
+      ReorderAttemptRepository reorderAttemptRepo) {
 
     this.repo = repo;
     this.orderMessages = orderMessages;
@@ -81,6 +90,7 @@ public class OrderService {
     this.inventoryService = inventoryService;
     this.classificationService = classificationService;
     this.designValidator = designValidator;
+    this.reorderAttemptRepo = reorderAttemptRepo;
   }
 
   @Value("${tacocloud.orders.max-quantity:10}")
@@ -90,6 +100,12 @@ public class OrderService {
 
   public Mono<TacoOrder> createOrder(OrderCreateCommand command, 
       Authentication authentication) {
+
+    return createOrder(command,authentication,null);
+  }
+
+  private Mono<TacoOrder> createOrder(OrderCreateCommand command,
+      Authentication authentication,String requestedOrderId) {
 
     if (authentication == null) {
       return Mono.error(
@@ -116,7 +132,8 @@ public class OrderService {
             .switchIfEmpty(
               Mono.error(
                 new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,"Valid tokenized payment method required")))
-            .flatMap(paymentMethod -> priceOrder(command,user))
+            .flatMap(paymentMethod -> priceOrder(
+                command,user,requestedOrderId))
             .flatMap(order -> inventoryService.reserve(order)
                 .flatMap(reservation -> repo.save(order)
                     .onErrorResume(saveError -> inventoryService
@@ -127,7 +144,8 @@ public class OrderService {
                   .thenReturn(savedOrder))));
   }
 
-  private Mono<TacoOrder> priceOrder(OrderCreateCommand command,User user) {
+  private Mono<TacoOrder> priceOrder(OrderCreateCommand command,User user,
+      String requestedOrderId) {
 
     return priceItems(command.getItems())
         .flatMap(items -> {
@@ -141,7 +159,8 @@ public class OrderService {
           }
 
           TacoOrder order = ApiMapper.toEntity(command);
-          order.setId(UUID.randomUUID().toString());
+          order.setId(requestedOrderId != null
+              ? requestedOrderId : UUID.randomUUID().toString());
           order.setUser(user);
           order.setPlacedAt(new Date());
           order.setCurrency(ORDER_CURRENCY);
@@ -171,6 +190,207 @@ public class OrderService {
               coupon.isApplicable(),coupon.getSubtotal(),coupon.getDiscount(),
               coupon.getTotal(),ORDER_CURRENCY,classifications);
         });
+  }
+
+  public Mono<ReorderResult> reorder(String originalOrderId,
+      String paymentMethodId,boolean confirmPriceChange,
+      String idempotencyKey,Authentication authentication) {
+    if (idempotencyKey == null || idempotencyKey.trim().isEmpty()
+        || idempotencyKey.length() > 200) {
+      return Mono.error(ApiException.badRequest(
+          "IDEMPOTENCY_KEY_REQUIRED",
+          "A valid Idempotency-Key is required for reorder."));
+    }
+
+    return currentUser(authentication)
+        .flatMap(user -> repo.findByIdAndUserId(originalOrderId,user.getId())
+            .switchIfEmpty(Mono.error(ApiException.notFound(
+                "ORDER_NOT_FOUND","Order does not exist.")))
+            .flatMap(original -> {
+              String scope = user.getId() + "\u0000" + originalOrderId
+                  + "\u0000" + idempotencyKey.trim();
+              String attemptId = stableId("reorder-attempt",scope);
+              String newOrderId = stableId("reorder-order",scope);
+              return existingReorder(attemptId,user.getId(),original)
+                  .switchIfEmpty(Mono.defer(() -> {
+                    OrderCreateCommand command = rebuildCommand(
+                        original,paymentMethodId);
+                    validateDelivery(command);
+                    return priceReorder(command)
+                        .flatMap(pricing -> finishReorder(
+                            original,command,pricing,confirmPriceChange,
+                            authentication,attemptId,newOrderId,user.getId()));
+                  }));
+            }));
+  }
+
+  private Mono<ReorderResult> finishReorder(TacoOrder original,
+      OrderCreateCommand command,ReorderPricing pricing,
+      boolean confirmPriceChange,Authentication authentication,
+      String attemptId,String newOrderId,String userId) {
+    BigDecimal originalTotal = money(original.getTotal());
+    BigDecimal currentTotal = money(pricing.getQuote().getTotal());
+    BigDecimal difference = currentTotal.subtract(originalTotal)
+        .setScale(MONEY_SCALE,MONEY_ROUNDING);
+    List<String> differences = new ArrayList<>(pricing.getDifferences());
+    if (difference.signum() != 0 && !differences.contains("PRICE_CHANGED")) {
+      differences.add("PRICE_CHANGED");
+    }
+    boolean requiresConfirmation = !differences.isEmpty();
+
+    if (requiresConfirmation && !confirmPriceChange) {
+      return Mono.just(new ReorderResult(
+          ReorderStatus.REORDER_QUOTE,true,originalTotal,currentTotal,
+          difference,differences,null));
+    }
+
+    command.setCouponCode(pricing.getEffectiveCouponCode());
+    ReorderAttempt attempt = new ReorderAttempt(
+        attemptId,userId,original.getId(),newOrderId,Status.PENDING);
+    ReorderPricing finalPricing = new ReorderPricing(
+        pricing.getQuote(),pricing.getEffectiveCouponCode(),differences);
+
+    return reorderAttemptRepo.insert(attempt)
+        .flatMap(claimed -> createOrder(command,authentication,newOrderId)
+            .flatMap(created -> markCreated(claimed)
+                .thenReturn(createdResult(original,created,finalPricing)))
+            .onErrorResume(error -> recoverCreatedOrder(
+                claimed,original,finalPricing,error)))
+        .onErrorResume(DuplicateKeyException.class,
+            error -> existingReorder(attemptId,userId,original)
+                .switchIfEmpty(Mono.error(ApiException.conflict(
+                    "REORDER_IN_PROGRESS","Reorder is still in progress."))));
+  }
+
+  private Mono<ReorderResult> recoverCreatedOrder(ReorderAttempt attempt,
+      TacoOrder original,ReorderPricing pricing,Throwable originalError) {
+    return repo.findByIdAndUserId(attempt.getNewOrderId(),attempt.getUserId())
+        .flatMap(created -> markCreated(attempt)
+            .then(Mono.<ReorderResult>error(originalError)))
+        .switchIfEmpty(Mono.defer(() -> reorderAttemptRepo
+            .deleteById(attempt.getId())
+            .then(Mono.<ReorderResult>error(originalError))));
+  }
+
+  private Mono<ReorderResult> existingReorder(String attemptId,
+      String userId,TacoOrder original) {
+    return reorderAttemptRepo.findById(attemptId)
+        .flatMap(attempt -> {
+          if (!userId.equals(attempt.getUserId())) {
+            return Mono.error(ApiException.conflict(
+                "REORDER_KEY_CONFLICT","Idempotency key has another owner."));
+          }
+          return repo.findByIdAndUserId(attempt.getNewOrderId(),userId)
+              .map(created -> createdResult(
+                  original,created,pricingFromCreated(original,created)))
+              .switchIfEmpty(Mono.error(ApiException.conflict(
+                  "REORDER_IN_PROGRESS","Reorder is still in progress.")));
+        });
+  }
+
+  private Mono<Void> markCreated(ReorderAttempt attempt) {
+    attempt.setStatus(Status.CREATED);
+    return reorderAttemptRepo.save(attempt).then();
+  }
+
+  private ReorderResult createdResult(TacoOrder original,TacoOrder created,
+      ReorderPricing pricing) {
+    BigDecimal originalTotal = money(original.getTotal());
+    BigDecimal currentTotal = money(created.getTotal());
+    return new ReorderResult(
+        ReorderStatus.REORDER_CREATED,false,originalTotal,currentTotal,
+        currentTotal.subtract(originalTotal)
+            .setScale(MONEY_SCALE,MONEY_ROUNDING),
+        new ArrayList<>(pricing.getDifferences()),created);
+  }
+
+  private ReorderPricing pricingFromCreated(TacoOrder original,
+      TacoOrder created) {
+    List<String> differences = new ArrayList<>();
+    if (money(created.getTotal()).compareTo(money(original.getTotal())) != 0) {
+      differences.add("PRICE_CHANGED");
+    }
+    if (original.getAppliedCouponCode() != null
+        && created.getAppliedCouponCode() == null) {
+      differences.add("COUPON_NOT_APPLICABLE");
+    }
+    return new ReorderPricing(null,created.getAppliedCouponCode(),differences);
+  }
+
+  private Mono<ReorderPricing> priceReorder(OrderCreateCommand command) {
+    OrderQuoteCommand requestedCoupon = new OrderQuoteCommand(
+        command.getItems(),command.getCouponCode());
+    return quote(requestedCoupon)
+        .flatMap(currentQuote -> {
+          if (currentQuote.isValid()) {
+            return Mono.just(new ReorderPricing(
+                currentQuote,command.getCouponCode(),Collections.emptyList()));
+          }
+          return quote(new OrderQuoteCommand(command.getItems(),null))
+              .map(withoutCoupon -> new ReorderPricing(
+                  withoutCoupon,null,
+                  Collections.singletonList("COUPON_NOT_APPLICABLE")));
+        });
+  }
+
+  private OrderCreateCommand rebuildCommand(TacoOrder original,
+      String paymentMethodId) {
+    List<OrderItem> historicalItems = original.getItems() != null
+        ? original.getItems() : Collections.emptyList();
+    List<OrderItemCommand> items = historicalItems.stream()
+        .map(item -> {
+          Taco historicalTaco = item.getTaco();
+          List<String> ingredientIds = historicalTaco != null
+              && historicalTaco.getIngredients() != null
+              ? historicalTaco.getIngredients().stream()
+                  .map(Ingredient::getId)
+                  .collect(java.util.stream.Collectors.toList())
+              : Collections.emptyList();
+          return new OrderItemCommand(
+              new TacoCommand(
+                  historicalTaco != null ? historicalTaco.getName() : null,
+                  ingredientIds),
+              item.getQuantity());
+        })
+        .collect(java.util.stream.Collectors.toList());
+
+    return new OrderCreateCommand(
+        original.getDeliveryName(),original.getDeliveryStreet(),
+        original.getDeliveryCity(),original.getDeliveryState(),
+        original.getDeliveryZip(),paymentMethodId,items,
+        original.getAppliedCouponCode());
+  }
+
+  private void validateDelivery(OrderCreateCommand command) {
+    if (isBlank(command.getDeliveryName())
+        || isBlank(command.getDeliveryStreet())
+        || isBlank(command.getDeliveryCity())
+        || isBlank(command.getDeliveryState())
+        || isBlank(command.getDeliveryZip())
+        || command.getDeliveryName().length() > 50
+        || command.getDeliveryStreet().length() > 100
+        || command.getDeliveryCity().length() > 50
+        || command.getDeliveryState().length() < 2
+        || command.getDeliveryState().length() > 50
+        || !command.getDeliveryZip().matches("[A-Za-z0-9 -]{3,10}")) {
+      throw ApiException.unprocessable(
+          "DELIVERY_DATA_INVALID","Historical delivery data is no longer valid.");
+    }
+  }
+
+  private boolean isBlank(String value) {
+    return value == null || value.trim().isEmpty();
+  }
+
+  private String stableId(String namespace,String scope) {
+    return UUID.nameUUIDFromBytes(
+        (namespace + "\u0000" + scope).getBytes(StandardCharsets.UTF_8))
+        .toString();
+  }
+
+  private BigDecimal money(BigDecimal value) {
+    return (value != null ? value : BigDecimal.ZERO)
+        .setScale(MONEY_SCALE,MONEY_ROUNDING);
   }
 
   private Mono<List<OrderItem>> priceItems(List<OrderItemCommand> commandItems) {
@@ -398,5 +618,30 @@ public class OrderService {
           ? 0
           : (int) ((totalElements + size - 1) / size);
     }
+  }
+
+  public enum ReorderStatus {
+    REORDER_QUOTE,
+    REORDER_CREATED
+  }
+
+  @Data
+  @AllArgsConstructor
+  public static class ReorderResult {
+    private ReorderStatus status;
+    private boolean requiresConfirmation;
+    private BigDecimal originalTotal;
+    private BigDecimal currentTotal;
+    private BigDecimal difference;
+    private List<String> differences;
+    private TacoOrder order;
+  }
+
+  @Data
+  @AllArgsConstructor
+  private static class ReorderPricing {
+    private OrderQuote quote;
+    private String effectiveCouponCode;
+    private List<String> differences;
   }
 }

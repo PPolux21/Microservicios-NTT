@@ -29,8 +29,11 @@ import tacos.web.api.error.ApiExceptionHandler.ApiException;
 import tacos.web.api.dto.ApiDtos.OrderItemRequest;
 import tacos.web.api.dto.ApiDtos.OrderQuoteRequest;
 import tacos.web.api.dto.ApiDtos.OrderTacoRequest;
+import tacos.web.api.dto.ApiDtos.ReorderRequest;
 import tacos.web.api.mapper.ApiMapper.OrderQuote;
 import tacos.web.api.mapper.ApiMapper.OrderQuoteCommand;
+import tacos.web.api.OrderService.ReorderResult;
+import tacos.web.api.OrderService.ReorderStatus;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -359,6 +362,42 @@ public class OrderApiControllerTest {
           assertTrue(!json.contains("couponCode"));
           assertTrue(!json.contains("rules"));
           assertTrue(!json.contains("coupons"));
+        })
+        .verifyComplete();
+
+    verify(repo,never()).save(any(TacoOrder.class));
+    verify(orderMessages,never()).sendOrder(any(TacoOrder.class));
+  }
+
+  @Test
+  public void shouldExposeReorderQuoteWithoutCreatingOrderDirectly()
+      throws Exception {
+    ReorderRequest request = new ReorderRequest();
+    request.setPaymentMethodId("PAY-1");
+    Authentication authentication = org.mockito.Mockito.mock(Authentication.class);
+    when(orderService.reorder(
+        "ORDER-1","PAY-1",false,"KEY-1",authentication))
+        .thenReturn(Mono.just(new ReorderResult(
+            ReorderStatus.REORDER_QUOTE,true,
+            new BigDecimal("10.00"),new BigDecimal("12.00"),
+            new BigDecimal("2.00"),
+            Collections.singletonList("PRICE_CHANGED"),null)));
+
+    StepVerifier.create(controller.reorder(
+        "ORDER-1","KEY-1",request,authentication))
+        .assertNext(response -> {
+          assertEquals("REORDER_QUOTE",response.getStatus());
+          assertTrue(response.isRequiresConfirmation());
+          assertEquals(new BigDecimal("2.00"),response.getDifference());
+          assertEquals(null,response.getOrder());
+          try {
+            String json = new ObjectMapper().writeValueAsString(response);
+            assertTrue(!json.contains("paymentToken"));
+            assertTrue(!json.contains("ccNumber"));
+            assertTrue(!json.contains("ccCVV"));
+          } catch (Exception exception) {
+            throw new AssertionError(exception);
+          }
         })
         .verifyComplete();
 

@@ -49,6 +49,7 @@ import tacos.User;
 import tacos.data.IngredientRepository;
 import tacos.data.OrderRepository;
 import tacos.data.PaymentMethodRepository;
+import tacos.data.ReorderAttemptRepository;
 import tacos.data.UserRepository;
 import tacos.messaging.OrderMessagingService;
 import tacos.web.api.dto.ApiDtos.OrderCreateRequest;
@@ -80,6 +81,7 @@ public class OrderServiceTest {
   private InventoryService inventoryService;
   private TacoClassificationService classificationService;
   private TacoDesignValidator designValidator;
+  private ReorderAttemptRepository reorderAttemptRepo;
 
   @BeforeEach
   public void setup() {
@@ -101,6 +103,7 @@ public class OrderServiceTest {
     inventoryService = Mockito.mock(InventoryService.class);
     classificationService = new TacoClassificationService(ingredientRepo);
     designValidator = Mockito.mock(TacoDesignValidator.class);
+    reorderAttemptRepo = Mockito.mock(ReorderAttemptRepository.class);
     when(designValidator.validateResolved(
         any(String.class),any(List.class),any(List.class)))
         .thenAnswer(invocation -> {
@@ -123,7 +126,7 @@ public class OrderServiceTest {
     service = new OrderService(
         repo,orderMessages,emailOrderService,userRepo,paymentMethodRepo,
         ingredientRepo,couponService,inventoryService,classificationService,
-        designValidator);
+        designValidator,reorderAttemptRepo);
   }
 
 

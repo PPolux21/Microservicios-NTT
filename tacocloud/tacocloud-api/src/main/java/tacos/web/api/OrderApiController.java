@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 import reactor.core.publisher.Mono;
@@ -22,6 +23,8 @@ import tacos.web.api.dto.ApiDtos.OrderCreateRequest;
 import tacos.web.api.dto.ApiDtos.OrderResponse;
 import tacos.web.api.dto.ApiDtos.OrderQuoteRequest;
 import tacos.web.api.dto.ApiDtos.OrderQuoteResponse;
+import tacos.web.api.dto.ApiDtos.ReorderRequest;
+import tacos.web.api.dto.ApiDtos.ReorderResponse;
 import tacos.web.api.error.ApiExceptionHandler.ApiException;
 import tacos.web.api.mapper.ApiMapper;
 import tacos.web.api.mapper.ApiMapper.OrderCreateCommand;
@@ -68,6 +71,18 @@ public class OrderApiController {
   public Mono<OrderQuoteResponse> quote(
       @Valid @RequestBody OrderQuoteRequest request) {
     return orderService.quote(ApiMapper.toCommand(request))
+        .map(ApiMapper::toResponse);
+  }
+
+  @PostMapping(path="/{orderId}/reorder",consumes="application/json")
+  public Mono<ReorderResponse> reorder(
+      @PathVariable String orderId,
+      @RequestHeader(name="Idempotency-Key",required=false) String idempotencyKey,
+      @Valid @RequestBody ReorderRequest request,
+      Authentication authentication) {
+    return orderService.reorder(
+        orderId,request.getPaymentMethodId(),request.isConfirmPriceChange(),
+        idempotencyKey,authentication)
         .map(ApiMapper::toResponse);
   }
 

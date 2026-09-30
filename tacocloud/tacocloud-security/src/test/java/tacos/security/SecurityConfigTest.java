@@ -203,6 +203,18 @@ public class SecurityConfigTest {
         .andExpect(status().isOk());
   }
 
+  @Test
+  public void shouldRequireAuthenticationForReorder()
+      throws Exception {
+    mvc.perform(post("/api/orders/ORDER-1/reorder").with(csrf()))
+        .andExpect(status().isUnauthorized());
+
+    mvc.perform(post("/api/orders/ORDER-1/reorder")
+            .with(csrf())
+            .with(user("jose").roles("USER")))
+        .andExpect(status().isOk());
+  }
+
 
   @Test
   public void shouldProtectActuatorAndDataRest()
@@ -334,6 +346,11 @@ public class SecurityConfigTest {
 
     @GetMapping("/api/admin/orders")
     public String adminOrders() {
+      return "ok";
+    }
+
+    @PostMapping("/api/orders/{orderId}/reorder")
+    public String reorder() {
       return "ok";
     }
   }

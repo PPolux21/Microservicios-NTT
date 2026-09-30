@@ -27,6 +27,7 @@ import tacos.web.api.dto.ApiDtos.OrderItemResponse;
 import tacos.web.api.dto.ApiDtos.OrderResponse;
 import tacos.web.api.dto.ApiDtos.OrderSummaryResponse;
 import tacos.web.api.dto.ApiDtos.OrderHistoryPageResponse;
+import tacos.web.api.dto.ApiDtos.ReorderResponse;
 import tacos.web.api.dto.ApiDtos.OrderTacoResponse;
 import tacos.web.api.dto.ApiDtos.TacoCatalogResponse;
 import tacos.web.api.dto.ApiDtos.TacoClassificationResponse;
@@ -41,6 +42,7 @@ import tacos.web.api.TacoDesignValidator.ValidationResult;
 import tacos.web.api.DailyTacoService.DailyTacoRecommendation;
 import tacos.web.api.FavoriteService.FavoritePage;
 import tacos.web.api.OrderService.OrderHistoryPage;
+import tacos.web.api.OrderService.ReorderResult;
 import tacos.web.api.TacoRatingService.RankedTaco;
 import tacos.data.TacoSearchRepository.TacoSearchPage;
 
@@ -178,6 +180,14 @@ public final class ApiMapper {
             .collect(Collectors.toList()),
         page.getPage(),page.getSize(),page.getTotalElements(),
         page.getTotalPages());
+  }
+
+  public static ReorderResponse toResponse(ReorderResult result) {
+    return new ReorderResponse(
+        result.getStatus().name(),result.isRequiresConfirmation(),
+        result.getOriginalTotal(),result.getCurrentTotal(),
+        result.getDifference(),result.getDifferences(),
+        result.getOrder() != null ? toResponse(result.getOrder()) : null);
   }
 
   public static OrderQuoteResponse toResponse(OrderQuote quote) {

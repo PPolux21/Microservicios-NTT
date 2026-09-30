@@ -276,6 +276,28 @@ public final class ApiDtos {
     private int totalPages;
   }
 
+  @Data
+  @NoArgsConstructor
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  public static class ReorderRequest {
+    @NotBlank(message="paymentMethodId is required")
+    private String paymentMethodId;
+    private boolean confirmPriceChange;
+  }
+
+  @Data
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class ReorderResponse {
+    private String status;
+    private boolean requiresConfirmation;
+    private BigDecimal originalTotal;
+    private BigDecimal currentTotal;
+    private BigDecimal difference;
+    private List<String> differences;
+    private OrderResponse order;
+  }
+
 
   @Data
   @AllArgsConstructor

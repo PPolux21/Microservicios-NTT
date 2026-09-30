@@ -88,6 +88,9 @@ tacocloud:
     allowed-origins: http://localhost:4200
   orders:
     max-quantity: 10
+    idempotency:
+      retention: ${TACOCLOUD_IDEMPOTENCY_RETENTION:24h}
+      in-progress-timeout: ${TACOCLOUD_IDEMPOTENCY_IN_PROGRESS_TIMEOUT:2m}
   kitchen:
     station-id: ${TACOCLOUD_KITCHEN_STATION_ID:station-01}
     eta:

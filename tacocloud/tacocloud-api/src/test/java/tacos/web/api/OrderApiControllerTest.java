@@ -28,6 +28,7 @@ import tacos.messaging.OrderMessagingService;
 import tacos.messaging.OrderEvent;
 import tacos.web.api.error.ApiExceptionHandler.ApiException;
 import tacos.web.api.dto.ApiDtos.OrderItemRequest;
+import tacos.web.api.dto.ApiDtos.OrderCreateRequest;
 import tacos.web.api.dto.ApiDtos.OrderQuoteRequest;
 import tacos.web.api.dto.ApiDtos.OrderTacoRequest;
 import tacos.web.api.dto.ApiDtos.OrderStatusChangeRequest;
@@ -36,6 +37,7 @@ import tacos.web.api.mapper.ApiMapper.OrderQuote;
 import tacos.web.api.mapper.ApiMapper.OrderQuoteCommand;
 import tacos.web.api.OrderService.ReorderResult;
 import tacos.web.api.OrderService.ReorderStatus;
+import tacos.web.api.OrderIdempotencyService.PlacementResult;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -57,6 +59,39 @@ public class OrderApiControllerTest {
   @InjectMocks
   private OrderApiController controller = 
       new OrderApiController(repo,orderService,workflowService);
+
+  @Test
+  public void shouldReturnCreatedThenOkForIdempotentReplay() {
+    OrderCreateRequest request = new OrderCreateRequest();
+    Authentication authentication = org.mockito.Mockito.mock(Authentication.class);
+    TacoOrder order = new TacoOrder();
+    order.setId("ORDER-1");
+
+    when(orderService.createOrder(
+        any(tacos.web.api.mapper.ApiMapper.OrderCreateCommand.class),
+        org.mockito.ArgumentMatchers.eq("order-key-123"),
+        org.mockito.ArgumentMatchers.eq(authentication)))
+        .thenReturn(Mono.just(new PlacementResult(order,false)))
+        .thenReturn(Mono.just(new PlacementResult(order,true)));
+
+    StepVerifier.create(controller.postOrder(
+        request,"order-key-123",authentication))
+        .assertNext(response -> {
+          assertEquals(HttpStatus.CREATED,response.getStatusCode());
+          assertEquals("/api/orders/ORDER-1",
+              response.getHeaders().getLocation().toString());
+          assertEquals("ORDER-1",response.getBody().getId());
+        })
+        .verifyComplete();
+
+    StepVerifier.create(controller.postOrder(
+        request,"order-key-123",authentication))
+        .assertNext(response -> {
+          assertEquals(HttpStatus.OK,response.getStatusCode());
+          assertEquals("ORDER-1",response.getBody().getId());
+        })
+        .verifyComplete();
+  }
 
 
   /*    TC-04

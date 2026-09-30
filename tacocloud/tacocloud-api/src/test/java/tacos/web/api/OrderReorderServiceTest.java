@@ -162,7 +162,8 @@ public class OrderReorderServiceTest {
     service = new OrderService(
         orders,orderOutbox,Mockito.mock(EmailOrderService.class),users,payments,
         ingredients,coupons,inventory,
-        new TacoClassificationService(ingredients),validator,attempts,metrics);
+        new TacoClassificationService(ingredients),validator,attempts,
+        null,null,metrics);
   }
 
   @Test
@@ -292,7 +293,8 @@ public class OrderReorderServiceTest {
     OrderService foreignService = new OrderService(
         orders,orderOutbox,Mockito.mock(EmailOrderService.class),foreignUsers,
         payments,ingredients,coupons,inventory,
-        new TacoClassificationService(ingredients),validator,attempts,metrics);
+        new TacoClassificationService(ingredients),validator,attempts,
+        null,null,metrics);
 
     StepVerifier.create(foreignService.reorder(
         "ORDER-OLD","PAY-B",true,"KEY-OWNER",authentication("bob")))

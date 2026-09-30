@@ -69,6 +69,8 @@ public class OrderService {
   private TacoClassificationService classificationService;
   private TacoDesignValidator designValidator;
   private ReorderAttemptRepository reorderAttemptRepo;
+  private OrderIdempotencyService idempotency;
+  private OrderRequestHasher requestHasher;
   private TacoMetrics metrics;
   private int maxQuantity = 10;
 
@@ -84,6 +86,8 @@ public class OrderService {
       TacoClassificationService classificationService,
       TacoDesignValidator designValidator,
       ReorderAttemptRepository reorderAttemptRepo,
+      OrderIdempotencyService idempotency,
+      OrderRequestHasher requestHasher,
       TacoMetrics metrics) {
 
     this.repo = repo;
@@ -97,6 +101,8 @@ public class OrderService {
     this.classificationService = classificationService;
     this.designValidator = designValidator;
     this.reorderAttemptRepo = reorderAttemptRepo;
+    this.idempotency = idempotency;
+    this.requestHasher = requestHasher;
     this.metrics = metrics;
   }
 
@@ -109,6 +115,17 @@ public class OrderService {
       Authentication authentication) {
 
     return createOrder(command,authentication,null);
+  }
+
+  public Mono<OrderIdempotencyService.PlacementResult> createOrder(
+      OrderCreateCommand command,String idempotencyKey,
+      Authentication authentication) {
+    idempotency.validateKey(idempotencyKey);
+    String requestHash = requestHasher.hash(command);
+    return currentUser(authentication)
+        .flatMap(user -> idempotency.execute(
+            user.getId(),idempotencyKey,requestHash,
+            orderId -> createOrder(command,authentication,orderId)));
   }
 
   private Mono<TacoOrder> createOrder(OrderCreateCommand command,

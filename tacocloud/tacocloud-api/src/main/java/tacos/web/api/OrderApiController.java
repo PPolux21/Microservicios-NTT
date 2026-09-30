@@ -1,5 +1,7 @@
 package tacos.web.api;
 
+import java.net.URI;
+
 import org.springframework.security.core.Authentication;
 
 import javax.validation.Valid;
@@ -50,16 +52,24 @@ public class OrderApiController {
   }
 
   @PostMapping(consumes="application/json")
-  @ResponseStatus(HttpStatus.CREATED)
-  public Mono<OrderResponse> postOrder(
+  public Mono<ResponseEntity<OrderResponse>> postOrder(
       @Valid @RequestBody OrderCreateRequest request,
+      @RequestHeader(name="Idempotency-Key",required=false)
+      String idempotencyKey,
       Authentication authentication) {
 
     OrderCreateCommand command = ApiMapper.toCommand(request);
 
     return orderService
-      .createOrder(command,authentication)
-      .map(ApiMapper::toResponse);
+      .createOrder(command,idempotencyKey,authentication)
+      .map(result -> {
+        OrderResponse response = ApiMapper.toResponse(result.getOrder());
+        if (result.isReplayed()) {
+          return ResponseEntity.ok(response);
+        }
+        return ResponseEntity.created(URI.create(
+            "/api/orders/" + result.getOrder().getId())).body(response);
+      });
   }
 
   @PostMapping(path="/quote",consumes="application/json")

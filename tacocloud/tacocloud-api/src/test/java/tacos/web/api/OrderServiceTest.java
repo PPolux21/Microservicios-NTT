@@ -88,6 +88,8 @@ public class OrderServiceTest {
   private TacoClassificationService classificationService;
   private TacoDesignValidator designValidator;
   private ReorderAttemptRepository reorderAttemptRepo;
+  private OrderIdempotencyService idempotency;
+  private OrderRequestHasher requestHasher;
   private TacoMetrics metrics;
   private SimpleMeterRegistry meterRegistry;
 
@@ -115,6 +117,8 @@ public class OrderServiceTest {
     meterRegistry = new SimpleMeterRegistry();
     metrics = new TacoMetrics(meterRegistry);
     reorderAttemptRepo = Mockito.mock(ReorderAttemptRepository.class);
+    idempotency = Mockito.mock(OrderIdempotencyService.class);
+    requestHasher = new OrderRequestHasher();
     when(designValidator.validateResolved(
         any(String.class),any(List.class),any(List.class)))
         .thenAnswer(invocation -> {
@@ -144,7 +148,7 @@ public class OrderServiceTest {
     service = new OrderService(
         repo,orderOutbox,emailOrderService,userRepo,paymentMethodRepo,
         ingredientRepo,couponService,inventoryService,classificationService,
-        designValidator,reorderAttemptRepo,metrics);
+        designValidator,reorderAttemptRepo,idempotency,requestHasher,metrics);
   }
 
 
@@ -153,6 +157,40 @@ public class OrderServiceTest {
    * Una conversión produce exactamente
    * un guardado y una publicación.
    */
+  @Test
+  public void shouldScopeHttpIdempotencyByAuthenticatedUserAndCanonicalHash() {
+    Authentication authentication = Mockito.mock(Authentication.class);
+    when(authentication.isAuthenticated()).thenReturn(true);
+    when(authentication.getName()).thenReturn("jose");
+    User user = Mockito.mock(User.class);
+    when(user.getId()).thenReturn("USER-1");
+    when(userRepo.findByUsername("jose")).thenReturn(Mono.just(user));
+    OrderCreateCommand command = orderCommand(1,"FLTO");
+    String hash = requestHasher.hash(command);
+    TacoOrder order = new TacoOrder();
+    order.setId("ORDER-IDEMPOTENT");
+
+    when(idempotency.execute(
+        org.mockito.ArgumentMatchers.eq("USER-1"),
+        org.mockito.ArgumentMatchers.eq("order-key-123"),
+        org.mockito.ArgumentMatchers.eq(hash),any()))
+        .thenReturn(Mono.just(new OrderIdempotencyService.PlacementResult(
+            order,false)));
+
+    StepVerifier.create(service.createOrder(
+        command,"order-key-123",authentication))
+        .expectNextMatches(result ->
+            !result.isReplayed()
+                && "ORDER-IDEMPOTENT".equals(result.getOrder().getId()))
+        .verifyComplete();
+
+    verify(idempotency).validateKey("order-key-123");
+    verify(idempotency).execute(
+        org.mockito.ArgumentMatchers.eq("USER-1"),
+        org.mockito.ArgumentMatchers.eq("order-key-123"),
+        org.mockito.ArgumentMatchers.eq(hash),any());
+  }
+
   @Test
   public void shouldSaveAndPublishExactlyOnce() {
 
